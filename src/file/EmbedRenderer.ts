@@ -63,7 +63,7 @@ class DrawioFileEmbed extends MarkdownRenderChild {
     try {
       const xml = await this.plugin.app.vault.read(this.file);
       const preview = el.createDiv({ cls: 'drawio-preview' });
-      renderPreview(preview, xml, { dark: this.plugin.settings.followObsidianTheme && this.plugin.isDark() });
+      renderPreview(preview, xml, this.plugin.previewOpts());
       addEditHint(el);
     } catch (err) {
       el.createDiv({ cls: 'drawio-error', text: `Failed to render diagram: ${String(err)}` });
@@ -104,7 +104,7 @@ async function renderEmbedInto(plugin: DrawioPlugin, span: HTMLElement, file: TF
   try {
     const xml = await plugin.app.vault.read(file);
     const preview = span.createDiv({ cls: 'drawio-preview' });
-    renderPreview(preview, xml, { dark: plugin.settings.followObsidianTheme && plugin.isDark() });
+    renderPreview(preview, xml, plugin.previewOpts());
     addEditHint(span);
   } catch (err) {
     span.empty();

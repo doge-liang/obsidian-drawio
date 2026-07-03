@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
-import type { DrawioMode } from './settings';
+import type { DrawioMode, NewDiagramLocation, PreviewAlignment } from './settings';
 import type DrawioPlugin from './main';
 
 export class DrawioSettingTab extends PluginSettingTab {
@@ -40,6 +40,41 @@ export class DrawioSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.customDrawioUrl)
           .onChange(async (v) => { this.plugin.settings.customDrawioUrl = v.trim(); await this.plugin.saveSettings(); }));
     }
+
+    new Setting(containerEl)
+      .setName('New diagram location')
+      .setDesc('Where the command and the ribbon button create new diagrams. The folder context menu always creates in the clicked folder.')
+      .addDropdown((d) => d
+        .addOption('root', 'Vault root')
+        .addOption('current', 'Same folder as current note')
+        .addOption('folder', 'Folder specified below')
+        .setValue(this.plugin.settings.newDiagramLocation)
+        .onChange(async (v) => {
+          this.plugin.settings.newDiagramLocation = v as NewDiagramLocation;
+          await this.plugin.saveSettings();
+          this.display();
+        }));
+
+    if (this.plugin.settings.newDiagramLocation === 'folder') {
+      new Setting(containerEl)
+        .setName('New diagram folder')
+        .setDesc('Created automatically if it doesn\'t exist, e.g. Diagrams/drawio')
+        .addText((t) => t
+          .setValue(this.plugin.settings.newDiagramFolder)
+          .onChange(async (v) => { this.plugin.settings.newDiagramFolder = v.trim(); await this.plugin.saveSettings(); }));
+    }
+
+    new Setting(containerEl)
+      .setName('Preview alignment')
+      .setDesc('How rendered previews (embeds and code blocks) are aligned. Applies when a note is re-rendered.')
+      .addDropdown((d) => d
+        .addOption('center', 'Center')
+        .addOption('left', 'Left')
+        .setValue(this.plugin.settings.previewAlignment)
+        .onChange(async (v) => {
+          this.plugin.settings.previewAlignment = v as PreviewAlignment;
+          await this.plugin.saveSettings();
+        }));
 
     new Setting(containerEl)
       .setName('Follow Obsidian theme')

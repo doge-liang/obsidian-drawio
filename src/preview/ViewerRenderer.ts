@@ -1,8 +1,13 @@
 import { ensureViewerLoaded, getGraphViewer } from './loadViewer';
 import { isValidDrawioXml, ensureMxfile } from '../model/xmlUtils';
 import { sanitizeSvgToNode } from './svgSanitizer';
+import type { PreviewAlignment } from '../settings';
 
-export interface RenderOptions { dark: boolean; }
+export interface RenderOptions {
+  dark: boolean;
+  /** Horizontal alignment of the rendered SVG; defaults to 'center'. */
+  align?: PreviewAlignment;
+}
 
 const RENDER_TIMEOUT_MS = 5000;
 
@@ -35,6 +40,7 @@ const RENDER_TIMEOUT_MS = 5000;
  */
 export function renderPreview(el: HTMLElement, xml: string, opts: RenderOptions): boolean {
   el.empty();
+  el.classList.toggle('drawio-align-left', opts.align === 'left');
   if (!isValidDrawioXml(xml)) {
     el.createDiv({ cls: 'drawio-error', text: 'Invalid drawio diagram' });
     return false;

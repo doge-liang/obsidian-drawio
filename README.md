@@ -35,7 +35,7 @@ The Online editor needs a network connection. For a fully offline editor, build 
 
 ## Usage
 
-- **New diagram file**: run the command **"Create new drawio diagram"** — it creates and opens an `Untitled Diagram <timestamp>.drawio` file with the editor embedded in the tab.
+- **New diagram file**: run the command **"Create new diagram"**, click the **ribbon button**, or **right-click a folder** in the file explorer and choose **"New drawio diagram"**. A new `.drawio` file is created (in the folder configured by **New diagram location**, or in the right-clicked folder) and opened with the editor embedded in the tab.
 - **Inline diagram**: add a ` ```drawio ` code block (paste drawio XML, or start empty and edit). It renders as a preview in both editing and reading views.
 - **Embed a file**: `![[your-diagram.drawio]]` in any note.
 - **To edit**, click anywhere on a preview (a centered **Edit** hint appears on hover) to open the editor; standalone `.drawio` files open the editor directly in their tab. Changes autosave back to the source (the code block, or the file).
@@ -44,6 +44,8 @@ The Online editor needs a network connection. For a fully offline editor, build 
 
 - **Editor source** — Offline (bundled webapp, default), Online (diagrams.net), or a Custom URL. Offline falls back to Online automatically when the bundled webapp isn't installed.
 - **Custom drawio URL** — used when Editor source is "Custom URL" (e.g. `https://embed.diagrams.net/`).
+- **New diagram location** — where the command and the ribbon button create new diagrams: vault root (default), the same folder as the current note, or a fixed folder (created automatically if missing). The folder context menu always creates in the clicked folder.
+- **Preview alignment** — center (default) or left-align rendered previews (embeds and code blocks).
 - **Follow Obsidian theme** — match the editor to light/dark.
 - **Show shape libraries** — toggle the editor's shape panel.
 - **Server idle timeout (seconds)** — stop the local server after this idle period (minimum 5). Only relevant in Offline mode.

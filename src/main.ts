@@ -1,4 +1,4 @@
-import { Plugin, FileSystemAdapter, Notice } from 'obsidian';
+import { Plugin, FileSystemAdapter, Notice, TFolder } from 'obsidian';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { DrawioSettings, DEFAULT_SETTINGS } from './settings';
@@ -6,7 +6,8 @@ import { ServerManager } from './server/ServerManager';
 import { DrawioModal } from './editor/DrawioModal';
 import type { DrawioEditorDeps } from './editor/DrawioEditor';
 import type { DrawioSource } from './model/DrawioSource';
-import { DRAWIO_VIEW_TYPE, DRAWIO_FILE_EXT, EMPTY_DIAGRAM, ONLINE_DRAWIO_URL } from './constants';
+import type { RenderOptions } from './preview/ViewerRenderer';
+import { DRAWIO_VIEW_TYPE, DRAWIO_FILE_EXT, ONLINE_DRAWIO_URL } from './constants';
 
 export default class DrawioPlugin extends Plugin {
   settings!: DrawioSettings;
@@ -29,16 +30,27 @@ export default class DrawioPlugin extends Plugin {
     const { registerDrawioEmbeds } = await import('./file/EmbedRenderer');
     registerDrawioEmbeds(this);
 
+    const { createNewDiagram } = await import('./file/createDiagram');
+
     this.addCommand({
       id: 'create-drawio-file',
       name: 'Create new diagram',
-      callback: async () => {
-        const path = `Untitled Diagram ${Date.now()}.drawio`;
-        const file = await this.app.vault.create(path, EMPTY_DIAGRAM);
-        const leaf = this.app.workspace.getLeaf(true);
-        await leaf.openFile(file);
-      },
+      callback: () => { void createNewDiagram(this); },
     });
+
+    this.addRibbonIcon('workflow', 'Create new drawio diagram', () => {
+      void createNewDiagram(this);
+    });
+
+    // "New drawio diagram" on folder context menus, creating in that folder.
+    this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
+      if (file instanceof TFolder) {
+        menu.addItem((item) => item
+          .setTitle('New drawio diagram')
+          .setIcon('workflow')
+          .onClick(() => { void createNewDiagram(this, file); }));
+      }
+    }));
 
     const { DrawioSettingTab } = await import('./settingsTab');
     this.addSettingTab(new DrawioSettingTab(this.app, this));
@@ -89,6 +101,14 @@ export default class DrawioPlugin extends Plugin {
 
   isDark(): boolean {
     return activeDocument.body.hasClass('theme-dark');
+  }
+
+  /** Options for every preview render (code blocks and embeds). */
+  previewOpts(): RenderOptions {
+    return {
+      dark: this.settings.followObsidianTheme && this.isDark(),
+      align: this.settings.previewAlignment,
+    };
   }
 
   /** Shared deps for any DrawioEditor surface (modal or inline file view). */

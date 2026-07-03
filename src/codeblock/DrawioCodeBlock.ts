@@ -19,7 +19,7 @@ function renderCodeBlock(
   const wrapper = el.createDiv({ cls: 'drawio-codeblock' });
   wrapper.setAttribute('title', 'Click to edit diagram');
   const preview = wrapper.createDiv({ cls: 'drawio-preview' });
-  renderPreview(preview, source, { dark: plugin.settings.followObsidianTheme && plugin.isDark() });
+  renderPreview(preview, source, plugin.previewOpts());
   addEditHint(wrapper);
 
   // Click anywhere on the diagram to edit (the centered hint shows on hover).

@@ -51,4 +51,19 @@ describe('renderPreview standalone-svg sizing', () => {
     expect(svg!.style.height).toBe('');
     expect(svg!.style.minWidth).toBe('');
   });
+
+  it('toggles the left-alignment class from opts.align', () => {
+    const el = document.createElement('div');
+    patchEl(el);
+
+    renderPreview(el, '<mxfile></mxfile>', { dark: false, align: 'left' });
+    expect(el.classList.contains('drawio-align-left')).toBe(true);
+
+    // Re-render with center (or unset) removes it again.
+    renderPreview(el, '<mxfile></mxfile>', { dark: false, align: 'center' });
+    expect(el.classList.contains('drawio-align-left')).toBe(false);
+
+    renderPreview(el, '<mxfile></mxfile>', { dark: false });
+    expect(el.classList.contains('drawio-align-left')).toBe(false);
+  });
 });
