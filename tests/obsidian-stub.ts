@@ -9,3 +9,9 @@ export class TFolder {
   path = '';
   name = '';
 }
+
+// Always report the newer API as available in tests; no test exercises the
+// pre-1.4.0 fallback path.
+export function requireApiVersion(_version: string): boolean {
+  return true;
+}

@@ -96,6 +96,34 @@ The vault used during development is
   `resolveBaseUrl()` falls back to `ONLINE_DRAWIO_URL` (one-time Notice, not a throw).
 - **Popout-window safety**: use `activeDocument`/`activeWindow` (baseline-supported),
   not `document`/`window`, in render paths.
+- **`Vault.createFolder()` requires Obsidian 1.4.0+** (it carries a `@since 1.4.0`
+  JSDoc tag in `obsidian.d.ts`) — newer than our `minAppVersion` of `1.0.0`, so a bare
+  call trips `obsidianmd/no-unsupported-api`. `src/file/createDiagram.ts` guards it
+  with `if (requireApiVersion('1.4.0')) { vault.createFolder(...) } else {
+  vault.adapter.mkdir(...) }` — `requireApiVersion` is the pattern the lint rule
+  itself recognizes as a valid guard (see `isGuardedByRequireApiVersion` in
+  `eslint-plugin-obsidianmd`'s `no-unsupported-api` rule), and `DataAdapter.mkdir` is
+  untagged (available since the first plugin API). **If you add any new Obsidian API
+  call, don't assume "it's basic, it must be old"** — check for a `@since` tag in
+  `node_modules/obsidian/obsidian.d.ts` before assuming it's minAppVersion-safe. To
+  reproduce a `no-unsupported-api` finding locally instead of guessing from a
+  reviewer-relayed line number (those can be off by a few lines in transcription):
+  `npm install --no-save eslint-plugin-obsidianmd typescript-eslint`, then run
+  ```js
+  // eslint.check.config.mjs (delete after use; don't commit)
+  import obsidianmd from 'eslint-plugin-obsidianmd';
+  import tseslint from 'typescript-eslint';
+  export default tseslint.config({
+    files: ['src/**/*.ts'],
+    languageOptions: { parser: tseslint.parser, parserOptions: {
+      project: './tsconfig.json', tsconfigRootDir: import.meta.dirname } },
+    plugins: { obsidianmd },
+    rules: { 'obsidianmd/no-unsupported-api': 'error' },
+  });
+  ```
+  via `npx eslint --no-config-lookup -c ./eslint.check.config.mjs src/`. `--no-save`
+  keeps `package.json`/`package-lock.json` untouched (`node_modules` is gitignored
+  anyway).
 
 ## Release process
 
@@ -109,10 +137,14 @@ The vault used during development is
   `env -u GITHUB_TOKEN gh release create <ver> main.js manifest.json styles.css --target main`.
 - Publishing a new release is how the Obsidian review **re-runs**.
 
-## Review status (as of 0.1.3)
+## Review status (as of 0.2.1)
 
-The only blocking **Error** (dynamic `<script>` creation) is fixed. Remaining
-findings are non-blocking and mostly inherent to the vendored drawio viewer:
+All blocking **Errors** found so far are fixed: dynamic `<script>` creation (0.1.3)
+and `Vault.createFolder` outrunning `minAppVersion` (0.2.1, see above). Whenever you
+add a new feature that touches an Obsidian API you haven't used before, run the local
+`no-unsupported-api` repro (above) before shipping — it's cheap and catches this
+class of error before a review round-trip. Remaining findings are non-blocking and
+mostly inherent to the vendored drawio viewer:
 - `fs` access (Warning) — ours: the local offline server + webapp existence check. Necessary, desktop-only.
 - Clipboard / Local Storage / Dynamic Code Execution (Recommendations) — all from the
   vendored drawio `viewer.min.js`, not our code (our one indirect eval adds to the

@@ -1,4 +1,4 @@
-import { Notice, TFolder } from 'obsidian';
+import { Notice, TFolder, requireApiVersion } from 'obsidian';
 import type DrawioPlugin from '../main';
 import type { DrawioSettings } from '../settings';
 import { EMPTY_DIAGRAM } from '../constants';
@@ -23,8 +23,11 @@ export function resolveNewDiagramFolder(
   }
 }
 
-/** Create missing folders segment by segment (recursive createFolder isn't
- *  guaranteed across all Obsidian versions we support). */
+/**
+ * Create missing folders segment by segment. `Vault.createFolder` requires
+ * Obsidian 1.4.0+; our minAppVersion is 1.0.0, so on older Obsidian builds we
+ * fall back to the adapter-level `mkdir` (available since the first plugin API).
+ */
 async function ensureFolderExists(plugin: DrawioPlugin, path: string): Promise<boolean> {
   if (!path) return true;
   let current = '';
@@ -36,7 +39,11 @@ async function ensureFolderExists(plugin: DrawioPlugin, path: string): Promise<b
       new Notice(`Drawio: "${current}" already exists but is not a folder.`);
       return false;
     }
-    await plugin.app.vault.createFolder(current);
+    if (requireApiVersion('1.4.0')) {
+      await plugin.app.vault.createFolder(current);
+    } else {
+      await plugin.app.vault.adapter.mkdir(current);
+    }
   }
   return true;
 }
