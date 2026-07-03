@@ -24,8 +24,5 @@
     "obsidian": "latest",
     "typescript": "^5.8.3",
     "vitest": "^2.1.8"
-  },
-  "dependencies": {
-    "dompurify": "^3.2.3"
   }
 }

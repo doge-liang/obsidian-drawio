@@ -33,7 +33,7 @@ export function ensureViewerLoaded(doc: Document = activeDocument): void {
   // <script>-free equivalent of appending an inline script tag.
   // eslint-disable-next-line no-eval -- run the bundled, vendored viewer in global scope without creating a <script> element
   const runInGlobalScope = win.eval as (code: string) => void;
-  runInGlobalScope(viewerSource as unknown as string);
+  runInGlobalScope(viewerSource);
   doc.head.dataset[SENTINEL] = '1';
 }
 

@@ -127,28 +127,121 @@ The vault used during development is
 
 ## Release process
 
-- **`env -u GITHUB_TOKEN`** is required for all `gh`/`git` write ops (the ambient PAT
-  lacks scope; the `doge-liang` oauth login has it).
-- Bump `manifest.json` `version` **and** add the matching entry to `versions.json`.
-- The release **tag must exactly equal** `manifest.version` (no `v` prefix) **and
-  point to a commit whose `manifest.json` already has that version** (a past failure
-  was a tag landing on a pre-bump commit).
-- Attach `main.js`, `manifest.json`, `styles.css` as release assets:
-  `env -u GITHUB_TOKEN gh release create <ver> main.js manifest.json styles.css --target main`.
-- Publishing a new release is how the Obsidian review **re-runs**.
+**Since 0.2.2, releases are built and published automatically** by
+`.github/workflows/release.yml`, triggered by pushing a version tag:
 
-## Review status (as of 0.2.1)
+1. Bump `manifest.json` `version` **and** add the matching entry to `versions.json`.
+   Commit and push to `main`.
+2. `env -u GITHUB_TOKEN git tag <ver> && env -u GITHUB_TOKEN git push origin <ver>`
+   — the tag must exactly equal `manifest.version` (no `v` prefix) and must be
+   pushed only after the version-bump commit is already on `main` (the workflow's
+   own "verify tag matches manifest.json" step now hard-fails if they ever
+   diverge — this used to be a manual, easy-to-miss check).
+3. The workflow does the rest on a clean checkout: `npm ci` → verify tag ==
+   manifest version → `npm run fetch-drawio` → `npm test` → `npm run build` →
+   generate a signed build-provenance attestation for `main.js`/`manifest.json`/
+   `styles.css` (`actions/attest-build-provenance`) → `gh release create` with
+   those three assets and `--generate-notes`.
+4. **Don't also run `gh release create` by hand** after pushing the tag — it
+   would race/conflict with the workflow's own release creation. If you want
+   hand-written release notes instead of the auto-generated ones, edit the
+   release afterward with `gh release edit <ver> --notes "..."`.
+5. Publishing a release (however it's created) is how the Obsidian review
+   **re-runs** — cut one whenever you want a fresh review pass, even for a small fix.
+6. **`env -u GITHUB_TOKEN`** is still required for any `gh`/`git` write op you run
+   by hand (tagging, editing release notes, etc.) — the ambient PAT lacks scope;
+   the `doge-liang` oauth login has it. (The workflow itself uses the auto-issued
+   `GITHUB_TOKEN`, unrelated to this.)
+
+GitHub Actions tag filters are **glob patterns, not regex** — `on.push.tags` only
+supports `*`, `**`, `+`, `?`, `!`, no `[0-9]`-style character classes. The workflow's
+trigger (`'*.*.*'`) is deliberately loose for this reason; the in-workflow
+manifest-version check is the real gate.
+
+## Review status (as of 0.2.2)
 
 All blocking **Errors** found so far are fixed: dynamic `<script>` creation (0.1.3)
-and `Vault.createFolder` outrunning `minAppVersion` (0.2.1, see above). Whenever you
-add a new feature that touches an Obsidian API you haven't used before, run the local
-`no-unsupported-api` repro (above) before shipping — it's cheap and catches this
-class of error before a review round-trip. Remaining findings are non-blocking and
-mostly inherent to the vendored drawio viewer:
+and `Vault.createFolder` outrunning `minAppVersion` (0.2.1). Remaining findings are
+non-blocking and mostly inherent to the vendored drawio viewer:
 - `fs` access (Warning) — ours: the local offline server + webapp existence check. Necessary, desktop-only.
 - Clipboard / Local Storage / Dynamic Code Execution (Recommendations) — all from the
   vendored drawio `viewer.min.js`, not our code (our one indirect eval adds to the
   eval recommendation but stays non-blocking).
 - `display` deprecation (Warning) — deliberate, see above.
-- Missing artifact attestations (Recommendation) — would require a GitHub Actions
-  build with `actions/attest-build-provenance`; not yet set up.
+- Missing artifact attestations — **resolved in 0.2.2** by the release workflow above.
+
+## Checklist: before shipping any change
+
+Distilled from every review round so far (0.1.0 → 0.2.2). Run through the relevant
+parts before adding a new Obsidian API call, touching the DOM/rendering path, or
+cutting a release — cheaper than a review round-trip.
+
+**New Obsidian API call you haven't used in this repo before:**
+- [ ] Check `node_modules/obsidian/obsidian.d.ts` for a `@since X.Y.Z` tag on it.
+  *"Looks basic" is not evidence it's been there forever* — `Vault.createFolder`
+  feels bog-standard but needs 1.4.0, above our `minAppVersion` of `1.0.0`.
+- [ ] If it's newer than `minAppVersion`: guard with `requireApiVersion('X.Y.Z')`
+  (the exact pattern `obsidianmd/no-unsupported-api`'s rule recognizes as
+  satisfying the check — see `isGuardedByRequireApiVersion` in the rule source) and
+  fall back to an older/untagged alternative. Don't bump `minAppVersion` for one
+  call site.
+- [ ] To verify a finding — including one relayed secondhand, where line numbers
+  can be transcribed incorrectly — reproduce the actual lint rule locally rather
+  than reasoning from the rule's source alone (see the repro recipe above; a static
+  read once wrongly pointed at `new Notice(...)` when the real culprit, found only
+  by actually running the rule, was `Vault.createFolder` three lines later).
+
+**Anything that dynamically creates DOM elements or runs code:**
+- [ ] Never `doc.createElement('script')` — even for our own vendored, offline,
+  no-network code, the review scanner flags it unconditionally (it can't tell
+  "trusted vendored blob" from "arbitrary remote code"). Use indirect eval
+  (`someWindow.eval(code)`) instead: identical global-scope semantics to a
+  top-level `<script>`, no script element created.
+- [ ] A genuine external-code loader (fetches `<script src="https://...">`) is a
+  real risk, not just an optics problem for the scanner — strip it at build time if
+  it's unused/inert (done for drawio's own MathJax-from-CDN loader in
+  `esbuild.config.mjs`), don't just work around the scanner's pattern match.
+- [ ] Don't reach for DOMPurify for drawio SVG/HTML content — it strips
+  `foreignObject` in every profile, erasing drawio's `html=1` text labels. Extend
+  `svgSanitizer.ts` instead.
+
+**`onunload()`:** never call `detachLeavesOfType()` — it resets the user's view to
+its default location on next load, discarding wherever they moved it. Only tear
+down servers/timers/listeners.
+
+**Anything that might render in a popped-out window:** use `activeDocument`/
+`activeWindow`, never bare `document`/`window`.
+
+**Settings tab:** `PluginSettingTab.display()` is deprecated in favor of
+`getSettingDefinitions()`, which needs Obsidian 1.13+. Stick with `display()` while
+`minAppVersion` stays low — it's a Warning, not a blocking Error.
+
+**`package.json` dependencies:**
+- [ ] `main.js` is a fully-bundled esbuild artifact — Obsidian never runs
+  `npm install` for a plugin, so there's rarely a reason to have *any* runtime
+  `dependencies` (everything should be inlined at build time). An unused
+  dependency is pure liability: it still trips vulnerability-advisory scanners for
+  code that isn't even imported. (Happened with `dompurify` — listed in
+  `dependencies`, never once imported, removed in 0.2.2 alongside a matching
+  GHSA finding.)
+- [ ] Use `npm audit --omit=dev` before worrying about an audit finding —
+  devDependency vulnerabilities (vitest/vite/esbuild toolchain, etc.) never ship in
+  `main.js` and don't affect the plugin's actual security posture.
+- [ ] If a dependency-name string (e.g. "dompurify") shows up inside `main.js`
+  *after* confirming it's not one of our own imports, it's very likely inside the
+  vendored `viewer.min.txt` itself — drawio bundles its own internal copy for the
+  editor's paste-sanitization. Not independently patchable; only fixed by bumping
+  `DRAWIO_VERSION` in `scripts/fetch-drawio.mjs`.
+
+**TypeScript/lint hygiene the review's scanner also checks (beyond
+`obsidianmd`-specific rules), easy to reintroduce after a refactor:**
+- Unnecessary type assertions (`x as unknown as T` when `x` already satisfies `T`,
+  usually after tightening/loosening a type elsewhere) — recheck casts you touch.
+- No control-character regex (`/[\x00-\x1f]/`) — filter by char code in a loop
+  instead (see `svgSanitizer.ts`'s `isUnsafeUrl`).
+- `window.setTimeout`/`window.clearTimeout`, not the bare globals.
+- No unnecessary `globalThis` casts.
+- A promise-returning function passed where a sync callback is expected needs
+  wrapping: `() => { void asyncFn(); }`, not a bare reference.
+
+**Cutting a release:** see the Release process section above.

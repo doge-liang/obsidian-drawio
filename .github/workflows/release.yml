@@ -1,0 +1,70 @@
+name: Release
+
+# Triggered by pushing a bare-version tag (e.g. "0.2.2" — no "v" prefix, matching
+# manifest.json's version, per this repo's release convention). Builds from a clean
+# checkout, verifies the tag matches manifest.json, generates a signed build
+# provenance attestation for the release assets, and publishes the release.
+#
+# GitHub Actions tag filters are glob patterns, NOT regex — no [0-9] character
+# classes (only *, **, +, ?, !). '*.*.*' is deliberately loose (matches any
+# two-dot tag); the "Verify tag matches manifest.json version" step below is the
+# real gate; a non-version tag that matched this glob would fail there, not slip
+# through.
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      # Catches the exact class of bug this repo has hit before: a tag landing on
+      # a commit whose manifest.json doesn't yet have that version.
+      - name: Verify tag matches manifest.json version
+        run: |
+          MANIFEST_VERSION=$(node -p "require('./manifest.json').version")
+          if [ "$GITHUB_REF_NAME" != "$MANIFEST_VERSION" ]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' does not match manifest.json version '$MANIFEST_VERSION'"
+            exit 1
+          fi
+
+      # Downloads the pinned drawio webapp; needed for the build (see CLAUDE.md).
+      - run: npm run fetch-drawio
+
+      - run: npm test
+
+      - run: npm run build
+
+      - name: Verify build artifacts exist
+        run: test -f main.js && test -f manifest.json && test -f styles.css
+
+      - name: Generate build provenance attestation
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            main.js manifest.json styles.css \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
