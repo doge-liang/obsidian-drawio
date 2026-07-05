@@ -59,9 +59,9 @@ The Online editor needs a network connection. For a fully offline editor, build 
 ## Notes & limitations
 
 - **Bundle size**: `main.js` includes drawio's `viewer.min.js` (~2.3 MB) inlined for offline previews, so the built `main.js` is ~2.4 MB. This is expected.
-- **Multi-page diagrams**: a code-block or embed **preview shows only the first page** of a multi-page diagram. Click to edit to reach the other pages (the editor shows all page tabs).
+- **Multi-page diagrams**: code-block and embed previews show a compact page-switcher (‹ N / M ›) below the diagram when it has more than one page. Click to edit still opens the full editor with all page tabs.
 - **Embed refresh**: an `![[file.drawio]]` embed re-renders automatically when the file is modified (including edits made through this plugin elsewhere).
-- **Multi-page embed subpaths**: a page selector like `![[file.drawio#Page-2]]` is ignored — the embed always shows the first page.
+- **Multi-page embed subpaths**: `![[file.drawio#Page-2]]` opens the embed showing the page named "Page-2" (matched by the diagram's `name` attribute) as its initial page; falls back to the first page if no page has that name.
 - **Desktop only**: see Requirements above.
 - **Security**: rendered SVG previews are sanitized before insertion — `<script>`/embedding elements, inline event handlers, script-bearing URL schemes (normalised to defeat control-character obfuscation), external `<use>` references, SMIL attribute injection, and dangerous CSS are removed, while drawio's `foreignObject` text labels are preserved. The bundled drawio preview engine (`viewer.min.js`) is run in the page's global scope without injecting a `<script>` element, and its one external-script loader (a MathJax-from-CDN helper, unused by offline previews) is stripped at build time — so previews fetch and execute no external code. In Offline mode the local server binds to `127.0.0.1` only and serves solely the bundled `webapp/` directory.
 
