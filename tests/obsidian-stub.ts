@@ -30,6 +30,10 @@ export class TextFileView {
   requestSave(): void {}
 }
 
+export class FileSystemAdapter {
+  getBasePath(): string { return ''; }
+}
+
 // Renders an icon into `parent`. A no-op is enough for tests that only assert
 // element structure — the icon glyph itself is not under test.
 export function setIcon(_parent: HTMLElement, _iconId: string): void {}
