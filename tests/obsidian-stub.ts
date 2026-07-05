@@ -10,8 +10,12 @@ export class TFolder {
   name = '';
 }
 
-// Always report the newer API as available in tests; no test exercises the
-// pre-1.4.0 fallback path.
-export function requireApiVersion(_version: string): boolean {
-  return true;
+export class TFile {
+  path = '';
+  basename = '';
+  extension = '';
 }
+
+// Renders an icon into `parent`. A no-op is enough for tests that only assert
+// element structure — the icon glyph itself is not under test.
+export function setIcon(_parent: HTMLElement, _iconId: string): void {}
