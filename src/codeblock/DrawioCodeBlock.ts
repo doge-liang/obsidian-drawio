@@ -1,4 +1,4 @@
-import { MarkdownPostProcessorContext } from 'obsidian';
+import { MarkdownPostProcessorContext, Notice, Platform } from 'obsidian';
 import { renderPreview } from '../preview/ViewerRenderer';
 import { renderPageControl } from '../preview/pageControl';
 import { addEditHint } from '../preview/editHint';
@@ -19,7 +19,7 @@ function renderCodeBlock(
   ctx: MarkdownPostProcessorContext,
 ) {
   const wrapper = el.createDiv({ cls: 'drawio-codeblock' });
-  wrapper.setAttribute('title', 'Click to edit diagram');
+  wrapper.setAttribute('title', Platform.isDesktopApp ? 'Click to edit diagram' : 'Drawio diagram');
   const preview = wrapper.createDiv({ cls: 'drawio-preview' });
 
   const wrapped = ensureMxfile(source);
@@ -39,10 +39,17 @@ function renderCodeBlock(
     });
   }
 
-  addEditHint(wrapper);
+  if (Platform.isDesktopApp) {
+    addEditHint(wrapper);
+  }
 
   // Click anywhere on the diagram to edit (the centered hint shows on hover).
+  // Mobile has no editor in this phase — show a Notice instead.
   wrapper.addEventListener('click', () => {
-    plugin.openEditor(new CodeBlockSource(plugin.app, ctx, el, source));
+    if (Platform.isDesktopApp) {
+      plugin.openEditor(new CodeBlockSource(plugin.app, ctx, el, source));
+    } else {
+      new Notice('Drawio: editing is only available on desktop');
+    }
   });
 }

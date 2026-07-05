@@ -96,3 +96,11 @@ export class Setting {
   addToggle(cb: (t: ToggleComponent) => unknown): this { cb(new ToggleComponent()); return this; }
   addText(cb: (t: TextComponent) => unknown): this { cb(new TextComponent()); return this; }
 }
+
+export class MarkdownRenderChild {
+  containerEl: HTMLElement;
+  constructor(containerEl: HTMLElement) { this.containerEl = containerEl; }
+  registerEvent(_ref: unknown): void {}
+  onload(): void {}
+  onunload(): void {}
+}

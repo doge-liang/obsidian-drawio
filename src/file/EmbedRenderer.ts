@@ -1,4 +1,4 @@
-import { MarkdownPostProcessorContext, MarkdownRenderChild, TFile } from 'obsidian';
+import { MarkdownPostProcessorContext, MarkdownRenderChild, Notice, Platform, TFile } from 'obsidian';
 import { renderPreview } from '../preview/ViewerRenderer';
 import { renderPageControl } from '../preview/pageControl';
 import { addEditHint } from '../preview/editHint';
@@ -76,7 +76,7 @@ class DrawioFileEmbed extends MarkdownRenderChild {
     const el = this.containerEl;
     el.empty();
     el.addClass('drawio-embed');
-    el.setAttribute('title', 'Click to edit diagram');
+    el.setAttribute('title', Platform.isDesktopApp ? 'Click to edit diagram' : 'Drawio diagram');
     try {
       const xml = await this.plugin.app.vault.read(this.file);
       const wrapped = ensureMxfile(xml);
@@ -106,7 +106,9 @@ class DrawioFileEmbed extends MarkdownRenderChild {
         });
       }
 
-      addEditHint(el);
+      if (Platform.isDesktopApp) {
+        addEditHint(el);
+      }
     } catch (err) {
       el.createDiv({ cls: 'drawio-error', text: `Failed to render diagram: ${String(err)}` });
     }
@@ -116,7 +118,11 @@ class DrawioFileEmbed extends MarkdownRenderChild {
       el.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        this.plugin.openEditor(new FileSource(this.plugin.app, this.file));
+        if (Platform.isDesktopApp) {
+          this.plugin.openEditor(new FileSource(this.plugin.app, this.file));
+        } else {
+          new Notice('Drawio: editing is only available on desktop');
+        }
       });
     }
   }
@@ -140,8 +146,14 @@ function registerEmbedPostProcessor(plugin: DrawioPlugin) {
       const file = plugin.app.metadataCache.getFirstLinkpathDest(path, ctx.sourcePath);
       if (!(file instanceof TFile)) continue;
       span.dataset.drawioEmbed = '1';
-      span.setAttribute('title', 'Click to edit diagram');
-      span.addEventListener('click', () => plugin.openEditor(new FileSource(plugin.app, file)));
+      span.setAttribute('title', Platform.isDesktopApp ? 'Click to edit diagram' : 'Drawio diagram');
+      span.addEventListener('click', () => {
+        if (Platform.isDesktopApp) {
+          plugin.openEditor(new FileSource(plugin.app, file));
+        } else {
+          new Notice('Drawio: editing is only available on desktop');
+        }
+      });
       void renderEmbedInto(plugin, span, file, subpath);
     }
   });
@@ -176,7 +188,9 @@ async function renderEmbedInto(
       });
     }
 
-    addEditHint(span);
+    if (Platform.isDesktopApp) {
+      addEditHint(span);
+    }
   } catch (err) {
     span.empty();
     span.createDiv({ cls: 'drawio-error', text: `Failed to render diagram: ${String(err)}` });
