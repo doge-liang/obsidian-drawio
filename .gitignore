@@ -5,3 +5,11 @@ webapp/
 .vscode/
 data.json
 src/preview/viewer.min.txt
+
+# Scratch lint configs used for local repro of review findings (see CLAUDE.md);
+# meant to be created and deleted within a session, never committed.
+eslint.check.config.mjs
+review-lint.mjs
+
+# Vite/Vitest auto-generated timestamped config shims.
+vitest.config.ts.timestamp-*.mjs
