@@ -66,4 +66,36 @@ describe('renderPreview standalone-svg sizing', () => {
     renderPreview(el, '<mxfile></mxfile>', { dark: false });
     expect(el.classList.contains('drawio-align-left')).toBe(false);
   });
+
+  it('threads opts.page into the data-mxgraph config passed to GraphViewer', () => {
+    const el = document.createElement('div');
+    patchEl(el);
+    let capturedConfig: any = null;
+    const originalCreate = fakeViewer.createViewerForElement;
+    fakeViewer.createViewerForElement = (mount: HTMLElement) => {
+      capturedConfig = JSON.parse(mount.getAttribute('data-mxgraph')!);
+      originalCreate(mount);
+    };
+
+    renderPreview(el, '<mxfile></mxfile>', { dark: false, page: 2 });
+
+    expect(capturedConfig.page).toBe(2);
+    fakeViewer.createViewerForElement = originalCreate;
+  });
+
+  it('defaults opts.page to 0 when not passed', () => {
+    const el = document.createElement('div');
+    patchEl(el);
+    let capturedConfig: any = null;
+    const originalCreate = fakeViewer.createViewerForElement;
+    fakeViewer.createViewerForElement = (mount: HTMLElement) => {
+      capturedConfig = JSON.parse(mount.getAttribute('data-mxgraph')!);
+      originalCreate(mount);
+    };
+
+    renderPreview(el, '<mxfile></mxfile>', { dark: false });
+
+    expect(capturedConfig.page).toBe(0);
+    fakeViewer.createViewerForElement = originalCreate;
+  });
 });

@@ -7,6 +7,8 @@ export interface RenderOptions {
   dark: boolean;
   /** Horizontal alignment of the rendered SVG; defaults to 'center'. */
   align?: PreviewAlignment;
+  /** Which diagram page to render (0-indexed); defaults to 0 (first page). */
+  page?: number;
 }
 
 const RENDER_TIMEOUT_MS = 5000;
@@ -58,6 +60,7 @@ export function renderPreview(el: HTMLElement, xml: string, opts: RenderOptions)
     // Render even when the mount is detached/hidden (reading view, lazy embeds).
     'check-visible-state': false,
     'dark-mode': opts.dark ? 'auto' : 'off',
+    page: opts.page ?? 0,
     xml: ensureMxfile(xml),
   };
   mount.setAttribute('data-mxgraph', JSON.stringify(data));
