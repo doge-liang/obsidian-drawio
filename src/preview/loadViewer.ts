@@ -31,9 +31,8 @@ export function ensureViewerLoaded(doc: Document = activeDocument): void {
   // Indirect eval: calling the window's `eval` through a reference (not the bare
   // `eval(...)` form) runs the code in that window's global scope. This is the
   // <script>-free equivalent of appending an inline script tag.
-  // eslint-disable-next-line no-eval -- run the bundled, vendored viewer in global scope without creating a <script> element
   const runInGlobalScope = win.eval as (code: string) => void;
-  runInGlobalScope(viewerSource);
+  runInGlobalScope(viewerSource as string);
   doc.head.dataset[SENTINEL] = '1';
 }
 
