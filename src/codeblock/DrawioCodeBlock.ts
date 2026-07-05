@@ -1,6 +1,8 @@
 import { MarkdownPostProcessorContext } from 'obsidian';
 import { renderPreview } from '../preview/ViewerRenderer';
+import { renderPageControl } from '../preview/pageControl';
 import { addEditHint } from '../preview/editHint';
+import { getDiagramPages, ensureMxfile } from '../model/xmlUtils';
 import { CodeBlockSource } from './CodeBlockSource';
 import type DrawioPlugin from '../main';
 
@@ -19,7 +21,24 @@ function renderCodeBlock(
   const wrapper = el.createDiv({ cls: 'drawio-codeblock' });
   wrapper.setAttribute('title', 'Click to edit diagram');
   const preview = wrapper.createDiv({ cls: 'drawio-preview' });
-  renderPreview(preview, source, plugin.previewOpts());
+
+  const wrapped = ensureMxfile(source);
+  const pages = getDiagramPages(wrapped);
+  let currentPage = 0;
+  renderPreview(preview, source, { ...plugin.previewOpts(), page: currentPage });
+
+  if (pages.length > 1) {
+    const pageControlEl = wrapper.createDiv({ cls: 'drawio-page-control' });
+    renderPageControl(pageControlEl, {
+      pages,
+      initialPage: currentPage,
+      onPageChange: (page) => {
+        currentPage = page;
+        renderPreview(preview, source, { ...plugin.previewOpts(), page });
+      },
+    });
+  }
+
   addEditHint(wrapper);
 
   // Click anywhere on the diagram to edit (the centered hint shows on hover).
