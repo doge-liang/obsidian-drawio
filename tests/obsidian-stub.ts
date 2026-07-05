@@ -16,6 +16,20 @@ export class TFile {
   extension = '';
 }
 
+export class TextFileView {
+  contentEl: HTMLElement = document.createElement('div');
+  file: TFile | null = null;
+  data = '';
+  constructor(_leaf: unknown) {}
+  getViewType(): string { return ''; }
+  getIcon(): string { return ''; }
+  getViewData(): string { return this.data; }
+  setViewData(_data: string, _clear: boolean): void {}
+  clear(): void {}
+  async onClose(): Promise<void> {}
+  requestSave(): void {}
+}
+
 // Renders an icon into `parent`. A no-op is enough for tests that only assert
 // element structure — the icon glyph itself is not under test.
 export function setIcon(_parent: HTMLElement, _iconId: string): void {}

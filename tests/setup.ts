@@ -39,3 +39,6 @@ proto.createEl = function (this: HTMLElement, tag: string, attrs?: ElAttrs) {
   this.appendChild(child);
   return child;
 };
+proto.addClass = function (this: HTMLElement, ...cls: string[]) {
+  this.classList.add(...cls);
+};
