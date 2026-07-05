@@ -1,6 +1,8 @@
 import { MarkdownPostProcessorContext, MarkdownRenderChild, TFile } from 'obsidian';
 import { renderPreview } from '../preview/ViewerRenderer';
+import { renderPageControl } from '../preview/pageControl';
 import { addEditHint } from '../preview/editHint';
+import { getDiagramPages, resolvePageFromSubpath, ensureMxfile } from '../model/xmlUtils';
 import { FileSource } from './FileSource';
 import { DRAWIO_FILE_EXT } from '../constants';
 import type DrawioPlugin from '../main';
@@ -18,8 +20,8 @@ export function registerDrawioEmbeds(plugin: DrawioPlugin) {
   const registry = (plugin.app as unknown as { embedRegistry?: EmbedRegistry }).embedRegistry;
   if (registry && typeof registry.registerExtension === 'function') {
     try {
-      registry.registerExtension(DRAWIO_FILE_EXT, (ctx, file) =>
-        new DrawioFileEmbed(plugin, file, ctx.containerEl));
+      registry.registerExtension(DRAWIO_FILE_EXT, (ctx, file, subpath) =>
+        new DrawioFileEmbed(plugin, file, ctx.containerEl, subpath));
       plugin.register(() => {
         try { registry.unregisterExtension?.(DRAWIO_FILE_EXT); } catch { /* ignore */ }
       });
@@ -38,13 +40,28 @@ interface EmbedRegistry {
 
 /** An embed component Obsidian drives in either editing mode. */
 class DrawioFileEmbed extends MarkdownRenderChild {
-  constructor(private plugin: DrawioPlugin, private file: TFile, containerEl: HTMLElement) {
+  private currentPage = 0;
+  private pageResolvedFromSubpath = false;
+
+  constructor(
+    private plugin: DrawioPlugin,
+    private file: TFile,
+    containerEl: HTMLElement,
+    private subpath?: string,
+  ) {
     super(containerEl);
   }
 
   /** Called by the embed system to (re)render the file's diagram. */
   async loadFile(file?: TFile): Promise<void> {
-    if (file) this.file = file;
+    if (file && file.path !== this.file.path) {
+      // Target file actually changed: any subpath was resolved for the old
+      // file and no longer applies. Start over at page 0 for the new one.
+      this.file = file;
+      this.currentPage = 0;
+      this.pageResolvedFromSubpath = false;
+      this.subpath = undefined;
+    }
     await this.render();
   }
 
@@ -62,8 +79,33 @@ class DrawioFileEmbed extends MarkdownRenderChild {
     el.setAttribute('title', 'Click to edit diagram');
     try {
       const xml = await this.plugin.app.vault.read(this.file);
+      const wrapped = ensureMxfile(xml);
+      const pages = getDiagramPages(wrapped);
+
+      if (!this.pageResolvedFromSubpath) {
+        this.pageResolvedFromSubpath = true;
+        this.currentPage = resolvePageFromSubpath(pages, this.subpath);
+      } else {
+        // A modify-triggered refresh: keep whatever page the user was looking
+        // at, clamped in case the page count shrank.
+        this.currentPage = Math.min(this.currentPage, Math.max(pages.length - 1, 0));
+      }
+
       const preview = el.createDiv({ cls: 'drawio-preview' });
-      renderPreview(preview, xml, this.plugin.previewOpts());
+      renderPreview(preview, xml, { ...this.plugin.previewOpts(), page: this.currentPage });
+
+      if (pages.length > 1) {
+        const pageControlEl = el.createDiv({ cls: 'drawio-page-control' });
+        renderPageControl(pageControlEl, {
+          pages,
+          initialPage: this.currentPage,
+          onPageChange: (page) => {
+            this.currentPage = page;
+            renderPreview(preview, xml, { ...this.plugin.previewOpts(), page });
+          },
+        });
+      }
+
       addEditHint(el);
     } catch (err) {
       el.createDiv({ cls: 'drawio-error', text: `Failed to render diagram: ${String(err)}` });
