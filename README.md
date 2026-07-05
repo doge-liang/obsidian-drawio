@@ -18,6 +18,7 @@ With the **bundled offline editor** (the default when installed), this plugin ma
 ## Requirements
 
 - **Desktop only.** The plugin uses Node/Electron APIs (and a local HTTP server for the offline editor), so it does not run on Obsidian mobile.
+- **Obsidian 1.4.0 or later.**
 
 ## Install
 

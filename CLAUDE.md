@@ -85,11 +85,37 @@ The vault used during development is
   DOMPurify. It still removes script/embedding elements, `on*` handlers,
   script-bearing URL schemes (normalised against control-char obfuscation), external
   `<use>`, SMIL injection, and dangerous CSS. Covered by `tests/svgSanitizer.test.ts`.
-- **`settingsTab.ts` uses `display()`, not `getSettingDefinitions()`** on purpose.
-  The declarative API is Obsidian 1.13+; `minAppVersion` is `1.0.0`, so
-  `getSettingDefinitions` trips `obsidianmd/no-unsupported-api` (an error). `display()`
-  only carries a deprecation *warning* — accepted tradeoff. Keep it unless
-  `minAppVersion` is raised.
+- **`minAppVersion` is `1.4.0`** — chosen as the lowest version that needs zero
+  `requireApiVersion` guards for any API this codebase currently uses (it exactly
+  matches `Vault.createFolder`'s own floor, see below). **Don't bump it casually**,
+  and see the settings-tab entry right below for a real mistake made bumping it
+  too far.
+- **`settingsTab.ts` uses the imperative `display()` API, NOT the declarative
+  `getSettingDefinitions()` one — this was tried and reverted, on purpose.**
+  0.3.0 (never released — see Review status below) briefly rewrote the settings
+  tab to use `getSettingDefinitions()`/`setControlValue`/`refreshDomState` and
+  bumped `minAppVersion` to `1.13.0` to match their `@since` tags. **The mistake:
+  a `@since` tag only tells you an API exists in *some* Obsidian version — it does
+  NOT tell you that version has actually shipped to the public.** At the time,
+  `1.13.0` was a Catalyst (early-access) build; the latest *public* release was
+  still `1.12.x`. Requiring `1.13.0` would have locked out every non-Catalyst user
+  — i.e. almost everyone — until Obsidian promoted it to general availability, on
+  a timeline we don't control. **Before requiring a version because an API's
+  `@since` says so, check that version has actually shipped publicly**, not just
+  that the tag exists in `obsidian.d.ts` — the same package ships tags for
+  early-access builds too. `display()` is deprecated but not going anywhere; the
+  cost of staying on it (one non-blocking review Warning) was far cheaper than
+  the cost of the alternative (shipping a plugin the vast majority of users on
+  public Obsidian couldn't even install). Reintroduce the declarative API only
+  once its `@since` version is confirmed publicly released AND you're willing to
+  raise `minAppVersion` to it.
+  - Current `display()` implementation: a `save()` closure avoids repeating
+    `void this.plugin.saveSettings()` per control; conditional rows (e.g. "Custom
+    drawio URL" only in Custom mode) re-render via `this.display()` in the gating
+    control's `onChange`; the idle-timeout field sets `inputEl.type = 'number'`
+    and `inputEl.min = '5'` for native spinner UX, with manual range validation
+    in `onChange` (invalid/too-small input is silently ignored, keeping the last
+    good value) since `display()` has no built-in `validate` callback.
 - **`onunload()` must NOT `detachLeavesOfType`.** Detaching resets the user's view to
   its default location on next load. Only stop the server.
 - **Default editor mode is `offline`** with automatic online fallback. The ~145 MB
@@ -98,14 +124,17 @@ The vault used during development is
 - **Popout-window safety**: use `activeDocument`/`activeWindow` (baseline-supported),
   not `document`/`window`, in render paths.
 - **`Vault.createFolder()` requires Obsidian 1.4.0+** (it carries a `@since 1.4.0`
-  JSDoc tag in `obsidian.d.ts`) — newer than our `minAppVersion` of `1.0.0`, so a bare
-  call trips `obsidianmd/no-unsupported-api`. `src/file/createDiagram.ts` guards it
-  with `if (requireApiVersion('1.4.0')) { vault.createFolder(...) } else {
-  vault.adapter.mkdir(...) }` — `requireApiVersion` is the pattern the lint rule
-  itself recognizes as a valid guard (see `isGuardedByRequireApiVersion` in
-  `eslint-plugin-obsidianmd`'s `no-unsupported-api` rule), and `DataAdapter.mkdir` is
-  untagged (available since the first plugin API). **If you add any new Obsidian API
-  call, don't assume "it's basic, it must be old"** — check for a `@since` tag in
+  JSDoc tag in `obsidian.d.ts`). `src/file/createDiagram.ts` originally called it
+  unguarded, tripping `obsidianmd/no-unsupported-api` while `minAppVersion` was
+  still `1.0.0`; fixed in 0.2.1 with a `requireApiVersion('1.4.0')` guard falling
+  back to `vault.adapter.mkdir(...)`. **That guard is gone again as of 0.3.1**:
+  `minAppVersion` is now exactly `1.4.0` (see above), so the guard's `else` branch
+  is unreachable dead code — Obsidian's own version gating guarantees no installed
+  instance runs below `minAppVersion`. *If you ever lower `minAppVersion` below
+  `1.4.0`, re-add a guard for `createFolder` (and anything else whose `@since` then
+  exceeds it)* — check `git log` for this file if you need the pattern back.
+  **If you add any new Obsidian API call, don't assume "it's basic, it must
+  be old"** — check for a `@since` tag in
   `node_modules/obsidian/obsidian.d.ts` before assuming it's minAppVersion-safe. To
   reproduce a `no-unsupported-api` finding locally instead of guessing from a
   reviewer-relayed line number (those can be off by a few lines in transcription):
@@ -159,11 +188,14 @@ supports `*`, `**`, `+`, `?`, `!`, no `[0-9]`-style character classes. The workf
 trigger (`'*.*.*'`) is deliberately loose for this reason; the in-workflow
 manifest-version check is the real gate.
 
-## Review status (as of 0.2.2)
+## Review status (as of 0.3.1)
 
 All blocking **Errors** found so far are fixed: dynamic `<script>` creation (0.1.3)
-and `Vault.createFolder` outrunning `minAppVersion` (0.2.1). Remaining findings are
-non-blocking and mostly inherent to the vendored drawio viewer:
+and `Vault.createFolder` outrunning `minAppVersion` (0.2.1). The `display`
+deprecation Warning is back and **accepted, not resolved** — see the settings-tab
+entry above for why the declarative-API alternative was tried in 0.3.0 and
+reverted (0.3.0 was never released). Remaining findings are non-blocking and
+inherent to the vendored drawio viewer:
 - `fs` access (Warning) — ours: the local offline server + webapp existence check. Necessary, desktop-only.
 - Clipboard / Local Storage / Dynamic Code Execution (Recommendations) — all from the
   vendored drawio `viewer.min.js`, not our code (our one indirect eval adds to the
@@ -173,19 +205,29 @@ non-blocking and mostly inherent to the vendored drawio viewer:
 
 ## Checklist: before shipping any change
 
-Distilled from every review round so far (0.1.0 → 0.2.2). Run through the relevant
+Distilled from every review round so far (0.1.0 → 0.3.1). Run through the relevant
 parts before adding a new Obsidian API call, touching the DOM/rendering path, or
 cutting a release — cheaper than a review round-trip.
 
 **New Obsidian API call you haven't used in this repo before:**
 - [ ] Check `node_modules/obsidian/obsidian.d.ts` for a `@since X.Y.Z` tag on it.
   *"Looks basic" is not evidence it's been there forever* — `Vault.createFolder`
-  feels bog-standard but needs 1.4.0, above our `minAppVersion` of `1.0.0`.
+  feels bog-standard but needs 1.4.0, our `minAppVersion`.
+- [ ] **A `@since` tag proves the API exists in some Obsidian version — it does
+  NOT prove that version has publicly shipped.** The `obsidian` npm package tags
+  Catalyst (early-access) APIs the same way as stable ones. Before requiring a
+  version because of a `@since` tag, confirm on Obsidian's own release notes/changelog
+  that the version is out of Catalyst and generally available — this is exactly how
+  0.3.0's `minAppVersion: 1.13.0` (declarative settings API) shipped-in-spirit but
+  would have locked out everyone not in the Catalyst program. Reverted in 0.3.1.
 - [ ] If it's newer than `minAppVersion`: guard with `requireApiVersion('X.Y.Z')`
   (the exact pattern `obsidianmd/no-unsupported-api`'s rule recognizes as
   satisfying the check — see `isGuardedByRequireApiVersion` in the rule source) and
   fall back to an older/untagged alternative. Don't bump `minAppVersion` for one
   call site.
+- [ ] Conversely, if `minAppVersion` ever moves *past* an API's `@since`, any
+  existing `requireApiVersion` guard for it becomes dead code (its fallback branch
+  is now unreachable) — simplify it away rather than leaving it as inert cruft.
 - [ ] To verify a finding — including one relayed secondhand, where line numbers
   can be transcribed incorrectly — reproduce the actual lint rule locally rather
   than reasoning from the rule's source alone (see the repro recipe above; a static
@@ -213,9 +255,15 @@ down servers/timers/listeners.
 **Anything that might render in a popped-out window:** use `activeDocument`/
 `activeWindow`, never bare `document`/`window`.
 
-**Settings tab:** `PluginSettingTab.display()` is deprecated in favor of
-`getSettingDefinitions()`, which needs Obsidian 1.13+. Stick with `display()` while
-`minAppVersion` stays low — it's a Warning, not a blocking Error.
+**Settings tab:** stick with `display()`. The declarative `getSettingDefinitions()`
+API is deprecation-free and nicer to write, but it's `@since 1.13.0`, and as of
+this writing `1.13.0` is still Catalyst-only (not publicly released) — see the
+"Non-obvious decisions" entry above. Don't switch until `1.13.0` (or whatever its
+successor is by then) is confirmed publicly released, and you're willing to raise
+`minAppVersion` to match. Adding a new setting to the current `display()`
+implementation: add a `new Setting(containerEl)...` block, use the shared `save()`
+closure after mutating `this.plugin.settings`, and if another row's visibility
+depends on the new setting, call `this.display()` in its `onChange` to re-render.
 
 **`package.json` dependencies:**
 - [ ] `main.js` is a fully-bundled esbuild artifact — Obsidian never runs
