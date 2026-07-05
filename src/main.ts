@@ -51,8 +51,8 @@ export default class DrawioPlugin extends Plugin {
   async pluginDir(): Promise<string> {
     const adapter = this.app.vault.adapter;
     if (adapter instanceof FileSystemAdapter) {
-      const { join } = await import('node:path');
-      return join(adapter.getBasePath(), this.manifest.dir ?? '');
+      const path = await import('node:path');
+      return path.join(adapter.getBasePath(), this.manifest.dir ?? '');
     }
     throw new Error('Drawio plugin requires a desktop (FileSystem) vault');
   }
@@ -63,10 +63,10 @@ export default class DrawioPlugin extends Plugin {
       return this.settings.customDrawioUrl;
     }
     if (mode === 'offline') {
-      const { join } = await import('node:path');
-      const { existsSync } = await import('node:fs');
-      const indexPath = join(await this.pluginDir(), 'webapp', 'index.html');
-      if (existsSync(indexPath)) {
+      const path = await import('node:path');
+      const fs = await import('node:fs');
+      const indexPath = path.join(await this.pluginDir(), 'webapp', 'index.html');
+      if (fs.existsSync(indexPath)) {
         const port = await this.server!.ensureStarted();
         this.server!.touch();
         return `http://127.0.0.1:${port}/index.html`;
