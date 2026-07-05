@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { mkdtempSync, writeFileSync, mkdirSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -60,6 +60,25 @@ describe('ServerManager', () => {
     const p1 = await mgr.ensureStarted();
     const p2 = await mgr.ensureStarted();
     expect(p1).toBe(p2);
+  });
+
+  it('concurrent ensureStarted calls share one in-flight startup (no double bind)', async () => {
+    mgr = new ServerManager(fakeWebapp(), { min: 41100, max: 41200, idleMs: 60000 });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const startSpy = vi.spyOn(mgr as any, 'start');
+    const [p1, p2] = await Promise.all([mgr.ensureStarted(), mgr.ensureStarted()]);
+    expect(p1).toBe(p2);
+    expect(startSpy).toHaveBeenCalledTimes(1);
+    const res = await fetch(`http://127.0.0.1:${p1}/index.html`);
+    expect(await res.text()).toContain('drawio');
+  });
+
+  it('setIdleMs updates the timeout without stopping the running server', async () => {
+    mgr = new ServerManager(fakeWebapp(), { min: 41100, max: 41200, idleMs: 60000 });
+    const port = await mgr.ensureStarted();
+    mgr.setIdleMs(120000);
+    const res = await fetch(`http://127.0.0.1:${port}/index.html`);
+    expect(await res.text()).toContain('drawio');
   });
 
   it('returns 400 for malformed percent-encoding (does not crash)', async () => {

@@ -144,8 +144,9 @@ export default class DrawioPlugin extends Plugin {
     });
   }
 
-  rebuildServer() {
-    this.server.stop();
-    this.server = this.buildServer();
+  /** Apply a changed idle-timeout setting without tearing down a running
+   * server — an open editor may hold a live connection to it. */
+  updateServerIdleTimeout() {
+    this.server.setIdleMs(this.settings.serverIdleTimeout * 1000);
   }
 }

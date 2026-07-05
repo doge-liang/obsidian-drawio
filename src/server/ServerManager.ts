@@ -19,6 +19,9 @@ export class ServerManager {
   private idleTimer: number | null = null;
   private realRoot = '';
   private pins = 0;
+  /** In-flight startup, so concurrent ensureStarted() callers await the same
+   * bind instead of each starting their own server on a different port. */
+  private starting: Promise<number> | null = null;
 
   constructor(private readonly root: string, private readonly opts: ServerOptions) {}
 
@@ -38,6 +41,13 @@ export class ServerManager {
     this.touch();
     if (!this.realRoot) this.realRoot = realpathSync(this.root);
     if (this.server) return this.port;
+    if (!this.starting) {
+      this.starting = this.start().finally(() => { this.starting = null; });
+    }
+    return this.starting;
+  }
+
+  private async start(): Promise<number> {
     this.port = await findFreePort(this.opts.min, this.opts.max);
     this.server = createServer((req, res) => this.handle(req.url ?? '/', res));
     await new Promise<void>((resolve, reject) => {
@@ -52,6 +62,14 @@ export class ServerManager {
     if (this.pins > 0) return;
     if (this.idleTimer) window.clearTimeout(this.idleTimer);
     this.idleTimer = window.setTimeout(() => this.stop(), this.opts.idleMs);
+  }
+
+  /** Update the idle-timeout duration in place. Never stops/recreates the
+   * running server (a currently-open editor may hold a live connection to
+   * it) — just re-arms the countdown with the new duration if unpinned. */
+  setIdleMs(idleMs: number): void {
+    this.opts.idleMs = idleMs;
+    this.touch();
   }
 
   stop(): void {

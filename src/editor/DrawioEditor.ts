@@ -29,6 +29,12 @@ export class DrawioEditor {
   private onMessage: ((e: MessageEvent) => void) | null = null;
   private origin = '';
   private acquired = false;
+  private destroyed = false;
+  /** The window mount() actually listens on — the container's own window, so a
+   * popped-out .drawio tab (a separate Window) still receives the iframe's
+   * postMessage replies, which are dispatched on ITS parent window, not the
+   * main app window. */
+  private win: Window = window;
 
   constructor(
     private container: HTMLElement,
@@ -39,6 +45,10 @@ export class DrawioEditor {
 
   async mount(): Promise<void> {
     const base = await this.deps.resolveBaseUrl();
+    // destroy() may have run while the await above was pending (e.g. rapid
+    // remount/close). Bail out before touching the server or the DOM.
+    if (this.destroyed) return;
+
     this.origin = new URL(base).origin;
     const q = buildEmbedQuery({ dark: this.deps.isDark(), libraries: this.deps.showLibraries() });
     const url = `${base}${base.includes('?') ? '&' : '?'}${q}`;
@@ -50,8 +60,9 @@ export class DrawioEditor {
     this.iframe.addEventListener('error', (ev) => console.error('Drawio: editor iframe failed to load', ev));
     this.iframe.setAttribute('src', url);
 
+    this.win = this.container.ownerDocument.defaultView ?? window;
     this.onMessage = (e: MessageEvent) => { void this.handle(e); };
-    window.addEventListener('message', this.onMessage);
+    this.win.addEventListener('message', this.onMessage);
   }
 
   /** Push fresh XML into the running editor (e.g. the file changed on disk). */
@@ -72,7 +83,14 @@ export class DrawioEditor {
         this.post(buildConfigureMessage());
         break;
       case 'init': {
-        const xml = await this.source.read();
+        let xml: string;
+        try {
+          xml = await this.source.read();
+        } catch (err) {
+          new Notice('Drawio: failed to read diagram');
+          console.error(err);
+          break;
+        }
         this.post(buildLoadMessage(xml, { dark: this.deps.isDark() }));
         break;
       }
@@ -98,7 +116,8 @@ export class DrawioEditor {
   }
 
   destroy(): void {
-    if (this.onMessage) window.removeEventListener('message', this.onMessage);
+    this.destroyed = true;
+    if (this.onMessage) this.win.removeEventListener('message', this.onMessage);
     this.onMessage = null;
     this.iframe = null;
     if (this.acquired) { this.deps.releaseServer(); this.acquired = false; }

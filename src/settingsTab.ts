@@ -114,7 +114,7 @@ export class DrawioSettingTab extends PluginSettingTab {
             if (!Number.isFinite(v) || v < 5) return;
             s.serverIdleTimeout = v;
             save();
-            this.plugin.rebuildServer();
+            this.plugin.updateServerIdleTimeout();
           });
       });
   }
