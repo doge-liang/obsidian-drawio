@@ -123,6 +123,32 @@ The vault used during development is
   `resolveBaseUrl()` falls back to `ONLINE_DRAWIO_URL` (one-time Notice, not a throw).
 - **Popout-window safety**: use `activeDocument`/`activeWindow` (baseline-supported),
   not `document`/`window`, in render paths.
+- **A popped-out `.drawio` editor needs BOTH directions of the `postMessage` bridge
+  fixed — receive AND send — and the two live in different places.** The editor iframe
+  speaks the drawio embed protocol over `postMessage`, but the plugin always runs in
+  the **main** window while a popped-out view's iframe lives in the **popout** window.
+  Obsidian adopts the view's DOM into the popout *after* `mount()` runs (both "move to
+  new window" and "open in new window" do this asynchronously), which reloads the
+  iframe. Two independent fixes are required — **don't revert either, and note that the
+  receive fix ALONE is not enough** (that intermediate state looked "fixed" but the
+  pane still blanked):
+  - **Receive** — `DrawioEditor.mount()` binds the `message` listener to
+    `this.win = this.container.ownerDocument.defaultView`, and `rebindIfWindowChanged()`
+    (wired to the iframe's `load` event) re-binds it whenever the container's window
+    changes. Without this the listener is stuck on the main window and never sees the
+    popped-out iframe's `configure`/`init` events.
+  - **Send** — `DrawioEditor.post()` must dispatch replies from the iframe's **parent
+    (popout) window realm** via indirect eval (`parentWin.eval(...)` posting to the
+    iframe), NOT a bare `iframe.contentWindow.postMessage(...)` from the main realm.
+    drawio only accepts protocol messages whose `source` is its own parent window; a
+    post issued from the main realm carries `source === main window`, which drawio
+    silently drops when popped out (its parent is the popout window), so the handshake
+    stalls right after `configure` and the pane stays blank. In the main window
+    `this.win === window`, the popout branch is skipped, and `post()` posts directly
+    (unchanged) — which is also why the modal (code blocks / embeds, always main-window)
+    and the in-main-window file view never showed the bug, making it look
+    window-specific. Diagnose with the drawio handshake: `configure` received but no
+    `init` follow-up ⇒ the reply isn't reaching drawio ⇒ it's the send side.
 - **`Vault.createFolder()` requires Obsidian 1.4.0+** (it carries a `@since 1.4.0`
   JSDoc tag in `obsidian.d.ts`). `src/file/createDiagram.ts` originally called it
   unguarded, tripping `obsidianmd/no-unsupported-api` while `minAppVersion` was

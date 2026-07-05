@@ -63,6 +63,40 @@ describe('DrawioEditor popout-window handling', () => {
     globalAdd.mockRestore();
     popoutAdd.mockRestore();
   });
+
+  it('rebinds to the new window when the container is adopted into a popout after mount() and the iframe reloads', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+
+    const globalRemove = vi.spyOn(window, 'removeEventListener');
+    const deps: DrawioEditorDeps = {
+      resolveBaseUrl: async () => 'http://127.0.0.1:1234/index.html',
+      isDark: () => false,
+      showLibraries: () => true,
+      acquireServer: vi.fn(),
+      releaseServer: vi.fn(),
+    };
+    const editor = new DrawioEditor(container, fakeSource(), deps);
+    await editor.mount();
+
+    // Simulate Obsidian adopting this view's DOM into a popout window some time
+    // after mount() ran, then the iframe reloading as a result of the move.
+    popoutFrame = document.createElement('iframe');
+    document.body.appendChild(popoutFrame);
+    const popoutWin = popoutFrame.contentWindow as Window;
+    popoutWin.document.body.appendChild(container); // reparents container + its iframe child
+
+    const popoutAdd = vi.spyOn(popoutWin, 'addEventListener');
+    const innerIframe = container.querySelector('iframe');
+    expect(innerIframe).not.toBeNull();
+    innerIframe!.dispatchEvent(new Event('load'));
+
+    expect(globalRemove).toHaveBeenCalledWith('message', expect.any(Function));
+    expect(popoutAdd).toHaveBeenCalledWith('message', expect.any(Function));
+
+    globalRemove.mockRestore();
+    popoutAdd.mockRestore();
+  });
 });
 
 describe('DrawioEditor destroy/mount race', () => {

@@ -58,11 +58,26 @@ export class DrawioEditor {
 
     this.iframe = this.container.createEl('iframe', { cls: 'drawio-iframe' });
     this.iframe.addEventListener('error', (ev) => console.error('Drawio: editor iframe failed to load', ev));
+    // Obsidian can adopt this view's DOM into a popout window's document some
+    // time after mount() runs (both "move to new window" and "open in new
+    // window" do this asynchronously) — which reloads the iframe, so its next
+    // postMessage handshake targets whatever window it ends up in. Re-sync the
+    // listener whenever the iframe (re)loads; a no-op if the window is unchanged.
+    this.iframe.addEventListener('load', () => this.rebindIfWindowChanged());
     this.iframe.setAttribute('src', url);
 
     this.win = this.container.ownerDocument.defaultView ?? window;
     this.onMessage = (e: MessageEvent) => { void this.handle(e); };
     this.win.addEventListener('message', this.onMessage);
+  }
+
+  private rebindIfWindowChanged(): void {
+    if (this.destroyed) return;
+    const current = this.container.ownerDocument.defaultView;
+    if (!current || current === this.win) return;
+    if (this.onMessage) this.win.removeEventListener('message', this.onMessage);
+    this.win = current;
+    if (this.onMessage) this.win.addEventListener('message', this.onMessage);
   }
 
   /** Push fresh XML into the running editor (e.g. the file changed on disk). */
@@ -112,7 +127,34 @@ export class DrawioEditor {
   }
 
   private post(message: string): void {
-    this.iframe?.contentWindow?.postMessage(message, this.origin === 'null' ? '*' : this.origin);
+    const cw = this.iframe?.contentWindow;
+    if (!cw) return;
+    const targetOrigin = this.origin === 'null' ? '*' : this.origin;
+    // When the view is popped out, its iframe lives in a different top-level
+    // window than the one this plugin code runs in (the main app window). drawio
+    // only accepts protocol replies whose source is its own parent window, so a
+    // direct cw.postMessage() issued from the main realm is ignored once popped
+    // out. Post from the iframe's parent-window realm (indirect eval on that
+    // window) so the message's source is that parent window. In the main window
+    // this branch is skipped and we post directly.
+    const parentWin = this.win as Window & {
+      eval?: (s: string) => void;
+      __drawioPostTarget?: Window;
+    };
+    if (parentWin && parentWin !== window && typeof parentWin.eval === 'function') {
+      try {
+        parentWin.__drawioPostTarget = cw;
+        parentWin.eval(
+          `window.__drawioPostTarget&&window.__drawioPostTarget.postMessage(${JSON.stringify(message)},${JSON.stringify(targetOrigin)})`,
+        );
+        return;
+      } catch (err) {
+        console.error('Drawio: cross-window post failed, falling back to direct', err);
+      } finally {
+        delete parentWin.__drawioPostTarget;
+      }
+    }
+    cw.postMessage(message, targetOrigin);
   }
 
   destroy(): void {
