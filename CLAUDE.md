@@ -271,6 +271,30 @@ cutting a release — cheaper than a review round-trip.
   scattering a new `Platform.isDesktopApp` check somewhere else — keeping the
   boundary in one place is what makes it auditable.
 
+**Any regex *literal* (`/pattern/flags`), anywhere in `src/`:**
+- [ ] Never use a lookbehind assertion (`(?<=`/`(?<!`), a named capture group
+  (`(?<name>`), or a Unicode property escape (`\p{...}`) in a regex *literal*.
+  These need iOS 16.4+ (lookbehind/named groups) or newer WebKit — but the
+  danger isn't "this code path never runs on old iOS": a regex literal's
+  syntax is validated when the *script is parsed*, not deferred to when that
+  line executes (unlike an unreached function body, which most engines can
+  skip during initial parsing). An unsupported regex literal anywhere in
+  `main.js` — even inside a function nothing on mobile ever calls — throws a
+  `SyntaxError` while the whole file is being parsed, crashing plugin load on
+  mobile exactly like a static Node-built-in import does. (Found in
+  `src/model/formatXml.ts` during mobile support's final verification sweep,
+  in code whose only *caller* was already desktop-gated — gating the caller
+  doesn't help, since the parse failure happens before any caller runs.)
+- [ ] If you need this kind of behavior, use `new RegExp(pattern, flags)` with
+  a runtime string (not a literal) inside a `try/catch`, or restructure the
+  logic to avoid the feature entirely (e.g. `formatXml.ts`'s fix: split on a
+  *captured* delimiter with only a lookahead, then re-merge the pairs).
+- [ ] `eslint-plugin-obsidianmd`'s `regex-lookbehind` rule catches lookbehind
+  specifically, but only lints `src/**/*.ts` — it does not scan the vendored
+  `viewer.min.txt`. If you ever change what's vendored there (see
+  `scripts/fetch-drawio.mjs`), grep the new blob for `(?<=`, `(?<!`, `(?<[a-zA-Z`,
+  and `\p{` before shipping.
+
 **Anything that dynamically creates DOM elements or runs code:**
 - [ ] Never `doc.createElement('script')` — even for our own vendored, offline,
   no-network code, the review scanner flags it unconditionally (it can't tell
