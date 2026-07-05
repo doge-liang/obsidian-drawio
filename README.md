@@ -17,8 +17,11 @@ With the **bundled offline editor** (the default when installed), this plugin ma
 
 ## Requirements
 
-- **Desktop only.** The plugin uses Node/Electron APIs (and a local HTTP server for the offline editor), so it does not run on Obsidian mobile.
 - **Obsidian 1.4.0 or later.**
+- **Editing is desktop only** (it needs Node/Electron APIs and, in Offline
+  mode, a local HTTP server). **Mobile (phone/tablet) supports preview
+  only**: rendered code blocks, embeds, and a read-only view for standalone
+  `.drawio` files.
 
 ## Install
 
@@ -63,7 +66,13 @@ The Online editor needs a network connection. For a fully offline editor, build 
 - **Multi-page diagrams**: code-block and embed previews show a compact page-switcher (‹ N / M ›) below the diagram when it has more than one page. Click to edit still opens the full editor with all page tabs.
 - **Embed refresh**: an `![[file.drawio]]` embed re-renders automatically when the file is modified (including edits made through this plugin elsewhere).
 - **Multi-page embed subpaths**: `![[file.drawio#Page-2]]` opens the embed showing the page named "Page-2" (matched by the diagram's `name` attribute) as its initial page; falls back to the first page if no page has that name.
-- **Desktop only**: see Requirements above.
+- **Mobile support**: on phone/tablet, code blocks, embeds, and standalone
+  `.drawio` files all render as read-only previews. Tapping one shows a
+  Notice explaining that editing needs desktop — there is no mobile editor in
+  this phase. The ribbon icon, "Create new diagram" command, and the folder
+  right-click "New drawio diagram" item aren't available on mobile either,
+  since their only purpose is opening that editor. See Requirements above for
+  what does need desktop.
 - **Security**: rendered SVG previews are sanitized before insertion — `<script>`/embedding elements, inline event handlers, script-bearing URL schemes (normalised to defeat control-character obfuscation), external `<use>` references, SMIL attribute injection, and dangerous CSS are removed, while drawio's `foreignObject` text labels are preserved. The bundled drawio preview engine (`viewer.min.js`) is run in the page's global scope without injecting a `<script>` element, and its one external-script loader (a MathJax-from-CDN helper, unused by offline previews) is stripped at build time — so previews fetch and execute no external code. In Offline mode the local server binds to `127.0.0.1` only and serves solely the bundled `webapp/` directory.
 
 ## License
