@@ -6,5 +6,5 @@
   "description": "Embed, preview, and edit draw.io diagrams directly in your notes.",
   "author": "doge-liang",
   "authorUrl": "https://github.com/doge-liang",
-  "isDesktopOnly": true
+  "isDesktopOnly": false
 }

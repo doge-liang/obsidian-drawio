@@ -34,6 +34,22 @@ export class FileSystemAdapter {
   getBasePath(): string { return ''; }
 }
 
+export class Plugin {
+  constructor(_app: unknown, _manifest: unknown) {}
+}
+
+export class Modal {
+  constructor(_app: unknown) {}
+}
+
+export const Platform = {
+  isDesktopApp: true,
+  isMobileApp: false,
+  isMobile: false,
+  isPhone: false,
+  isTablet: false,
+};
+
 // Renders an icon into `parent`. A no-op is enough for tests that only assert
 // element structure — the icon glyph itself is not under test.
 export function setIcon(_parent: HTMLElement, _iconId: string): void {}
