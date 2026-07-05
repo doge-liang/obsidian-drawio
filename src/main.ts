@@ -1,4 +1,4 @@
-import { Plugin, FileSystemAdapter, Notice, Platform, TFolder } from 'obsidian';
+import { Plugin, FileSystemAdapter, Notice, Platform } from 'obsidian';
 import { DrawioSettings, DEFAULT_SETTINGS } from './settings';
 import type { ServerManager } from './server/ServerManager';
 import { DrawioModal } from './editor/DrawioModal';
