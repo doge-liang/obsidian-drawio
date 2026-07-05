@@ -274,8 +274,10 @@ cutting a release — cheaper than a review round-trip.
 **Any regex *literal* (`/pattern/flags`), anywhere in `src/`:**
 - [ ] Never use a lookbehind assertion (`(?<=`/`(?<!`), a named capture group
   (`(?<name>`), or a Unicode property escape (`\p{...}`) in a regex *literal*.
-  These need iOS 16.4+ (lookbehind/named groups) or newer WebKit — but the
-  danger isn't "this code path never runs on old iOS": a regex literal's
+  Lookbehind needs iOS 16.4+; named groups and Unicode property escapes only
+  need iOS 11.1+ (avoided here too, out of the same caution, even though
+  their floor is much lower) — but the danger isn't "this code path never
+  runs on old iOS": a regex literal's
   syntax is validated when the *script is parsed*, not deferred to when that
   line executes (unlike an unreached function body, which most engines can
   skip during initial parsing). An unsupported regex literal anywhere in
