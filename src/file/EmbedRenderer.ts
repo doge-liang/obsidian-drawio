@@ -127,26 +127,55 @@ function registerEmbedPostProcessor(plugin: DrawioPlugin) {
   plugin.registerMarkdownPostProcessor((el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
     for (const span of Array.from(el.querySelectorAll<HTMLElement>('.internal-embed'))) {
       if (span.dataset.drawioEmbed === '1') continue;
-      const src = span.getAttribute('src');
-      if (!src || !src.toLowerCase().endsWith('.' + DRAWIO_FILE_EXT)) continue;
-      const file = plugin.app.metadataCache.getFirstLinkpathDest(src, ctx.sourcePath);
+      const rawSrc = span.getAttribute('src');
+      if (!rawSrc) continue;
+      // Obsidian's exact behavior for whether a `#subpath` ends up in `src` for
+      // an unrecognized (non-.md) embed extension isn't guaranteed — split it
+      // off before the extension check so this works either way (see Task 6
+      // in the implementation plan for why).
+      const hashIndex = rawSrc.indexOf('#');
+      const path = hashIndex === -1 ? rawSrc : rawSrc.slice(0, hashIndex);
+      const subpath = hashIndex === -1 ? undefined : rawSrc.slice(hashIndex + 1);
+      if (!path.toLowerCase().endsWith('.' + DRAWIO_FILE_EXT)) continue;
+      const file = plugin.app.metadataCache.getFirstLinkpathDest(path, ctx.sourcePath);
       if (!(file instanceof TFile)) continue;
       span.dataset.drawioEmbed = '1';
       span.setAttribute('title', 'Click to edit diagram');
       span.addEventListener('click', () => plugin.openEditor(new FileSource(plugin.app, file)));
-      void renderEmbedInto(plugin, span, file);
+      void renderEmbedInto(plugin, span, file, subpath);
     }
   });
 }
 
-async function renderEmbedInto(plugin: DrawioPlugin, span: HTMLElement, file: TFile) {
+async function renderEmbedInto(
+  plugin: DrawioPlugin,
+  span: HTMLElement,
+  file: TFile,
+  subpath?: string,
+) {
   span.empty();
   span.addClass('drawio-embed');
   span.removeClasses(['file-embed', 'mod-generic', 'is-loaded']);
   try {
     const xml = await plugin.app.vault.read(file);
+    const wrapped = ensureMxfile(xml);
+    const pages = getDiagramPages(wrapped);
+    const currentPage = resolvePageFromSubpath(pages, subpath);
+
     const preview = span.createDiv({ cls: 'drawio-preview' });
-    renderPreview(preview, xml, plugin.previewOpts());
+    renderPreview(preview, xml, { ...plugin.previewOpts(), page: currentPage });
+
+    if (pages.length > 1) {
+      const pageControlEl = span.createDiv({ cls: 'drawio-page-control' });
+      renderPageControl(pageControlEl, {
+        pages,
+        initialPage: currentPage,
+        onPageChange: (page) => {
+          renderPreview(preview, xml, { ...plugin.previewOpts(), page });
+        },
+      });
+    }
+
     addEditHint(span);
   } catch (err) {
     span.empty();
