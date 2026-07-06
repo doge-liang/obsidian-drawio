@@ -21,9 +21,19 @@ export function formatDrawioXml(xml: string): string {
   if (!trimmed) return trimmed;
 
   // Collapse any existing inter-tag whitespace so re-formatting is idempotent,
-  // then split at every tag boundary without consuming characters.
+  // then split at every tag boundary without consuming characters. Lookbehind
+  // isn't supported on iOS before 16.4 — and unlike a skipped function body, an
+  // unsupported regex *literal* fails to parse at script-load time regardless
+  // of whether it's ever evaluated, which would crash the whole plugin on
+  // mobile. Splitting on a captured `>` (with only a lookahead for `<`) and
+  // re-merging each captured delimiter onto the preceding piece reproduces the
+  // same tokens without lookbehind.
   const compact = trimmed.replace(/>\s+</g, '><');
-  const tokens = compact.split(/(?<=>)(?=<)/);
+  const boundaryParts = compact.split(/(>)(?=<)/);
+  const tokens: string[] = [];
+  for (let i = 0; i < boundaryParts.length; i += 2) {
+    tokens.push((boundaryParts[i] ?? '') + (boundaryParts[i + 1] ?? ''));
+  }
 
   let depth = 0;
   const pad = (d: number) => '  '.repeat(Math.max(0, d));

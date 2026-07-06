@@ -8,9 +8,14 @@ to work around drawio/Obsidian quirks.
 
 ## What this is
 
-An Obsidian **desktop-only** plugin that embeds, previews, and edits
+An Obsidian plugin that embeds, previews, and edits
 [draw.io](https://www.drawio.com/) (diagrams.net) diagrams. Plugin **id is
 `drawio-editor`** (the bare `drawio` id is reserved — do not change it back).
+**Editing is desktop-only** (it needs the iframe-based drawio embed app, the
+local Node server, or a network connection); **mobile (phone/tablet) gets
+preview only** — code blocks, embeds, and a read-only view for standalone
+`.drawio` files. See `src/desktop/registerDesktopFeatures.ts` and the
+"Mobile support" entry below.
 
 Three surfaces:
 - **Code blocks** — ` ```drawio ` blocks: rendered as an SVG preview, click to edit.
@@ -68,6 +73,24 @@ The vault used during development is
 
 ## Non-obvious decisions — DO NOT casually revert
 
+- **Mobile support (`isDesktopOnly: false`)**: `main.ts` and `ServerManager.ts`
+  used to have top-level static imports of `node:http`/`node:fs`/`node:path`.
+  esbuild marks Node built-ins as `external` (`esbuild.config.mjs`), so a
+  static top-level import compiles to an unconditional, module-load-time
+  `require(...)` call — which throws immediately on mobile (no Node runtime),
+  crashing the *entire plugin load* before `onload()` even runs. Fixed by
+  never letting a `node:*`/`electron` import be *static and top-level* outside
+  `src/server/**` or `src/desktop/**` — both are only ever reached through the
+  one `Platform.isDesktopApp`-gated dynamic import in `main.ts`'s
+  `maybeRegisterDesktopFeatures()`. A dynamic `await import(...)` at the point
+  of use (e.g. `main.ts`'s `pluginDir()`/`resolveBaseUrl()`) is fine anywhere,
+  since it's never eagerly evaluated — only a *static* top-level import gets
+  hoisted and unconditionally `require()`d. **If you add a new Node/Electron
+  API call anywhere outside those two directories, use a dynamic import at
+  the call site — never a top-level static import** — or you will silently
+  reintroduce the mobile load-time crash. `Platform` itself
+  (`isDesktopApp`/`isMobile`/`isPhone`/`isTablet`) is `@since 0.12.2`, long
+  publicly released — no `minAppVersion` concern.
 - **Previews run the viewer via *indirect eval*, not a `<script>` element**
   (`src/preview/loadViewer.ts`). The plugin-review scanner flags
   `createElement("script")` as a blocking error; indirect eval (`win.eval(src)`) has
@@ -259,6 +282,46 @@ cutting a release — cheaper than a review round-trip.
   than reasoning from the rule's source alone (see the repro recipe above; a static
   read once wrongly pointed at `new Notice(...)` when the real culprit, found only
   by actually running the rule, was `Vault.createFolder` three lines later).
+
+**Anything that imports a Node built-in (`node:*`) or `electron`:**
+- [ ] Never a *static, top-level* `import ... from 'node:...'` (or `'electron'`)
+  outside `src/server/**` or `src/desktop/**` — esbuild's `external` config
+  (`esbuild.config.mjs`) leaves these as unconditional `require(...)` calls in
+  the bundled `main.js`, which crashes the entire plugin load on mobile
+  (no Node runtime) before `onload()` runs.
+- [ ] If the call site is outside those two directories (e.g. a method on
+  `DrawioPlugin` in `main.ts`), use a dynamic `await import('node:...')`
+  *inside* the function body, at the point of use — never a top-level import.
+- [ ] If you're adding a genuinely new desktop-only feature, prefer adding it
+  to `src/desktop/registerDesktopFeatures.ts` (or a sibling file there) over
+  scattering a new `Platform.isDesktopApp` check somewhere else — keeping the
+  boundary in one place is what makes it auditable.
+
+**Any regex *literal* (`/pattern/flags`), anywhere in `src/`:**
+- [ ] Never use a lookbehind assertion (`(?<=`/`(?<!`), a named capture group
+  (`(?<name>`), or a Unicode property escape (`\p{...}`) in a regex *literal*.
+  Lookbehind needs iOS 16.4+; named groups and Unicode property escapes only
+  need iOS 11.1+ (avoided here too, out of the same caution, even though
+  their floor is much lower) — but the danger isn't "this code path never
+  runs on old iOS": a regex literal's
+  syntax is validated when the *script is parsed*, not deferred to when that
+  line executes (unlike an unreached function body, which most engines can
+  skip during initial parsing). An unsupported regex literal anywhere in
+  `main.js` — even inside a function nothing on mobile ever calls — throws a
+  `SyntaxError` while the whole file is being parsed, crashing plugin load on
+  mobile exactly like a static Node-built-in import does. (Found in
+  `src/model/formatXml.ts` during mobile support's final verification sweep,
+  in code whose only *caller* was already desktop-gated — gating the caller
+  doesn't help, since the parse failure happens before any caller runs.)
+- [ ] If you need this kind of behavior, use `new RegExp(pattern, flags)` with
+  a runtime string (not a literal) inside a `try/catch`, or restructure the
+  logic to avoid the feature entirely (e.g. `formatXml.ts`'s fix: split on a
+  *captured* delimiter with only a lookahead, then re-merge the pairs).
+- [ ] `eslint-plugin-obsidianmd`'s `regex-lookbehind` rule catches lookbehind
+  specifically, but only lints `src/**/*.ts` — it does not scan the vendored
+  `viewer.min.txt`. If you ever change what's vendored there (see
+  `scripts/fetch-drawio.mjs`), grep the new blob for `(?<=`, `(?<!`, `(?<[a-zA-Z`,
+  and `\p{` before shipping.
 
 **Anything that dynamically creates DOM elements or runs code:**
 - [ ] Never `doc.createElement('script')` — even for our own vendored, offline,

@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, Platform, PluginSettingTab, Setting } from 'obsidian';
 import type DrawioPlugin from './main';
 import type { DrawioMode, NewDiagramLocation, PreviewAlignment } from './settings';
 
@@ -22,61 +22,63 @@ export class DrawioSettingTab extends PluginSettingTab {
     const s = this.plugin.settings;
     const save = () => { void this.plugin.saveSettings(); };
 
-    new Setting(containerEl)
-      .setName('Editor source')
-      .setDesc(
-        'Offline (default) uses the bundled editor served locally — fully offline, no network. ' +
-        'Online loads the editor from diagrams.net. Or point at a custom embed URL. If Offline is ' +
-        "selected but the bundled webapp isn't installed, the online editor is used automatically.",
-      )
-      .addDropdown((d) => d
-        .addOption('online', 'Online (diagrams.net)')
-        .addOption('offline', 'Offline (bundled webapp)')
-        .addOption('custom', 'Custom URL')
-        .setValue(s.drawioMode)
-        .onChange((v) => { s.drawioMode = v as DrawioMode; save(); this.display(); }));
-
-    // Privacy note shown only in Online mode.
-    if (s.drawioMode === 'online') {
-      new Setting(containerEl).setDesc(
-        'The editor UI is loaded from diagrams.net. Your diagram content stays in the browser and ' +
-        'is not uploaded; only the editor assets are fetched over the network.',
-      );
-    }
-
-    // Custom embed URL, only relevant in Custom mode.
-    if (s.drawioMode === 'custom') {
+    if (Platform.isDesktopApp) {
       new Setting(containerEl)
-        .setName('Custom drawio URL')
-        .setDesc('Embed URL, e.g. https://embed.diagrams.net/')
-        .addText((t) => t
-          .setPlaceholder('https://embed.diagrams.net/')
-          .setValue(s.customDrawioUrl)
-          .onChange((v) => { s.customDrawioUrl = v; save(); }));
-    }
+        .setName('Editor source')
+        .setDesc(
+          'Offline (default) uses the bundled editor served locally — fully offline, no network. ' +
+          'Online loads the editor from diagrams.net. Or point at a custom embed URL. If Offline is ' +
+          "selected but the bundled webapp isn't installed, the online editor is used automatically.",
+        )
+        .addDropdown((d) => d
+          .addOption('online', 'Online (diagrams.net)')
+          .addOption('offline', 'Offline (bundled webapp)')
+          .addOption('custom', 'Custom URL')
+          .setValue(s.drawioMode)
+          .onChange((v) => { s.drawioMode = v as DrawioMode; save(); this.display(); }));
 
-    new Setting(containerEl)
-      .setName('New diagram location')
-      .setDesc(
-        'Where the command and the ribbon button create new diagrams. The folder context menu ' +
-        'always creates in the clicked folder.',
-      )
-      .addDropdown((d) => d
-        .addOption('root', 'Vault root')
-        .addOption('current', 'Same folder as current note')
-        .addOption('folder', 'Folder specified below')
-        .setValue(s.newDiagramLocation)
-        .onChange((v) => { s.newDiagramLocation = v as NewDiagramLocation; save(); this.display(); }));
+      // Privacy note shown only in Online mode.
+      if (s.drawioMode === 'online') {
+        new Setting(containerEl).setDesc(
+          'The editor UI is loaded from diagrams.net. Your diagram content stays in the browser and ' +
+          'is not uploaded; only the editor assets are fetched over the network.',
+        );
+      }
 
-    // Target folder, only relevant when the location is a fixed folder.
-    if (s.newDiagramLocation === 'folder') {
+      // Custom embed URL, only relevant in Custom mode.
+      if (s.drawioMode === 'custom') {
+        new Setting(containerEl)
+          .setName('Custom drawio URL')
+          .setDesc('Embed URL, e.g. https://embed.diagrams.net/')
+          .addText((t) => t
+            .setPlaceholder('https://embed.diagrams.net/')
+            .setValue(s.customDrawioUrl)
+            .onChange((v) => { s.customDrawioUrl = v; save(); }));
+      }
+
       new Setting(containerEl)
-        .setName('New diagram folder')
-        .setDesc("Created automatically if it doesn't exist.")
-        .addText((t) => t
-          .setPlaceholder('Diagrams/drawio')
-          .setValue(s.newDiagramFolder)
-          .onChange((v) => { s.newDiagramFolder = v; save(); }));
+        .setName('New diagram location')
+        .setDesc(
+          'Where the command and the ribbon button create new diagrams. The folder context menu ' +
+          'always creates in the clicked folder.',
+        )
+        .addDropdown((d) => d
+          .addOption('root', 'Vault root')
+          .addOption('current', 'Same folder as current note')
+          .addOption('folder', 'Folder specified below')
+          .setValue(s.newDiagramLocation)
+          .onChange((v) => { s.newDiagramLocation = v as NewDiagramLocation; save(); this.display(); }));
+
+      // Target folder, only relevant when the location is a fixed folder.
+      if (s.newDiagramLocation === 'folder') {
+        new Setting(containerEl)
+          .setName('New diagram folder')
+          .setDesc("Created automatically if it doesn't exist.")
+          .addText((t) => t
+            .setPlaceholder('Diagrams/drawio')
+            .setValue(s.newDiagramFolder)
+            .onChange((v) => { s.newDiagramFolder = v; save(); }));
+      }
     }
 
     new Setting(containerEl)
@@ -94,28 +96,30 @@ export class DrawioSettingTab extends PluginSettingTab {
         .setValue(s.followObsidianTheme)
         .onChange((v) => { s.followObsidianTheme = v; save(); }));
 
-    new Setting(containerEl)
-      .setName('Show shape libraries')
-      .addToggle((t) => t
-        .setValue(s.showLibraries)
-        .onChange((v) => { s.showLibraries = v; save(); }));
+    if (Platform.isDesktopApp) {
+      new Setting(containerEl)
+        .setName('Show shape libraries')
+        .addToggle((t) => t
+          .setValue(s.showLibraries)
+          .onChange((v) => { s.showLibraries = v; save(); }));
 
-    new Setting(containerEl)
-      .setName('Server idle timeout (seconds)')
-      .setDesc('Stop the local drawio server after this idle period (minimum 5). Only used in Offline mode.')
-      .addText((t) => {
-        t.inputEl.type = 'number';
-        t.inputEl.min = '5';
-        t.setValue(String(s.serverIdleTimeout))
-          .onChange((raw) => {
-            // Ignore invalid/too-small input so the last good value is kept; the
-            // change only takes effect (and restarts the server) once valid.
-            const v = Number(raw);
-            if (!Number.isFinite(v) || v < 5) return;
-            s.serverIdleTimeout = v;
-            save();
-            this.plugin.updateServerIdleTimeout();
-          });
-      });
+      new Setting(containerEl)
+        .setName('Server idle timeout (seconds)')
+        .setDesc('Stop the local drawio server after this idle period (minimum 5). Only used in Offline mode.')
+        .addText((t) => {
+          t.inputEl.type = 'number';
+          t.inputEl.min = '5';
+          t.setValue(String(s.serverIdleTimeout))
+            .onChange((raw) => {
+              // Ignore invalid/too-small input so the last good value is kept; the
+              // change only takes effect (and restarts the server) once valid.
+              const v = Number(raw);
+              if (!Number.isFinite(v) || v < 5) return;
+              s.serverIdleTimeout = v;
+              save();
+              this.plugin.updateServerIdleTimeout();
+            });
+        });
+    }
   }
 }
