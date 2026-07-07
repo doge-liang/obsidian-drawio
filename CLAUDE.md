@@ -67,9 +67,8 @@ These are separate; a change to one rarely affects the other.
 
 Local manual testing installs to a vault by copying `main.js` + `manifest.json` +
 `styles.css` (and optionally `webapp/`) into `<vault>/.obsidian/plugins/<folder>/`.
-The vault used during development is
-`/mnt/d/Knowledge/.obsidian/plugins/obsidian-drawio/` (folder name is the old
-`obsidian-drawio`; the manifest id inside is `drawio-editor`).
+The plugin folder used during development is named `obsidian-drawio` (the old
+name; the manifest id inside is `drawio-editor`).
 
 ## Non-obvious decisions — DO NOT casually revert
 
