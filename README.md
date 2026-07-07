@@ -6,7 +6,7 @@
 
 Embed, preview, and edit [draw.io](https://www.drawio.com/) (diagrams.net) diagrams directly in your notes. Previews render fully offline on every platform, and diagrams are stored as readable, diff-friendly XML.
 
-<!-- Screenshot slot: add docs/assets/hero.png (a note showing an embed preview next to the inline editor), and reference it with the absolute raw.githubusercontent.com URL so it also renders inside Obsidian's community-plugin browser. -->
+![Embed preview with the multi-page switcher](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/hero.png)
 
 ## Highlights
 
@@ -35,6 +35,8 @@ No extra setup is needed: a store install uses the online diagrams.net editor au
 
 All three render as SVG previews in both editing and reading views, and every edit autosaves back to its source — the code block's XML or the `.drawio` file. Embeds re-render automatically when the underlying file changes.
 
+![The drawio editor embedded in a file tab](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/file-editor.png)
+
 **Multi-page diagrams:** previews show a page switcher (‹ N / M ›) below the diagram when it has more than one page. `![[file.drawio#Page-2]]` selects the initial page by its name (falling back to the first page if no page matches). Opening the editor always shows all page tabs.
 
 ### Platform support
@@ -50,6 +52,8 @@ All three render as SVG previews in both editing and reading views, and every ed
 | Offline editor (bundled webapp + local server) | Yes | — | — |
 
 Phones and tablets behave identically: previews everywhere, no editing. Tapping a preview there shows a notice that editing needs desktop; the creation entry points are hidden as well, since their sole purpose is opening the editor.
+
+<img src="https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/mobile-preview.png" alt="Read-only preview on mobile" width="320">
 
 ## Settings
 
