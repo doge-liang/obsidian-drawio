@@ -91,6 +91,20 @@ The vault used during development is
   reintroduce the mobile load-time crash. `Platform` itself
   (`isDesktopApp`/`isMobile`/`isPhone`/`isTablet`) is `@since 0.12.2`, long
   publicly released — no `minAppVersion` concern.
+  - **The dynamic-import pattern is only safe because esbuild lowers it (0.4.0
+    regression).** esbuild *preserves* a dynamic `import()` of an external
+    module as a native `import()` whenever the target supports the syntax
+    (es2020+), even in cjs output — and Obsidian's CJS plugin loader in the
+    Electron renderer resolves a native `import("node:path")` as a URL fetch,
+    which rejects with `TypeError: Failed to fetch dynamically imported
+    module`. In 0.4.0 that broke **every desktop editor mount in offline mode**
+    (`resolveBaseUrl()` threw before its webapp check, so not even the online
+    fallback ran). Fixed in 0.4.1 by `supported: { 'dynamic-import': false }`
+    in `esbuild.config.mjs`, which lowers every dynamic import to a lazy
+    promise-wrapped `require()` (still evaluated at the call site, so the
+    mobile rule above holds), plus `guardNativeNodeImportsPlugin`, which fails
+    the build if a native `import()` of a Node built-in/electron ever
+    reappears in `main.js`. **Don't remove either.**
 - **Previews run the viewer via *indirect eval*, not a `<script>` element**
   (`src/preview/loadViewer.ts`). The plugin-review scanner flags
   `createElement("script")` as a blocking error; indirect eval (`win.eval(src)`) has
@@ -292,6 +306,13 @@ cutting a release — cheaper than a review round-trip.
 - [ ] If the call site is outside those two directories (e.g. a method on
   `DrawioPlugin` in `main.ts`), use a dynamic `await import('node:...')`
   *inside* the function body, at the point of use — never a top-level import.
+- [ ] That dynamic-import pattern works ONLY because `esbuild.config.mjs` sets
+  `supported: { 'dynamic-import': false }`, lowering `import()` to a lazy
+  `require()`. Never remove that option: without it esbuild keeps a *native*
+  `import("node:...")` in `main.js` (es2021 supports the syntax), which
+  Obsidian's renderer can't resolve at runtime ("Failed to fetch dynamically
+  imported module" — the 0.4.0 desktop regression, fixed in 0.4.1). The
+  `guard-native-node-imports` build plugin enforces this at build time.
 - [ ] If you're adding a genuinely new desktop-only feature, prefer adding it
   to `src/desktop/registerDesktopFeatures.ts` (or a sibling file there) over
   scattering a new `Platform.isDesktopApp` check somewhere else — keeping the

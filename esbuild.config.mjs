@@ -43,8 +43,36 @@ const sanitizeDrawioViewerPlugin = {
   },
 };
 
+// esbuild preserves dynamic import() of *external* modules as a native import()
+// whenever the target supports the syntax (es2020+), even in cjs output. Obsidian
+// loads plugins through its own CJS loader in the Electron renderer, where a native
+// import("node:path") is resolved as a URL fetch and rejects with "Failed to fetch
+// dynamically imported module" — which broke every desktop editor mount in 0.4.0.
+// `supported: { 'dynamic-import': false }` (below) forces the require() lowering;
+// this guard fails the build loudly if a native import of a Node built-in or
+// electron ever reappears in the bundle.
+const guardNativeNodeImportsPlugin = {
+  name: 'guard-native-node-imports',
+  setup(build) {
+    build.onEnd(async (result) => {
+      if (result.errors.length > 0) return;
+      const out = await readFile('main.js', 'utf8');
+      for (const [, spec] of out.matchAll(/import\(\s*["']([^"']+)["']\s*\)/g)) {
+        const bare = spec.replace(/^node:/, '');
+        if (spec.startsWith('node:') || spec === 'electron' || builtinModules.includes(bare)) {
+          throw new Error(
+            `guard-native-node-imports: main.js contains a native dynamic import("${spec}"). ` +
+            `Obsidian's renderer cannot resolve it at runtime. Ensure 'dynamic-import' stays ` +
+            `disabled in the esbuild 'supported' option so it lowers to require().`,
+          );
+        }
+      }
+    });
+  },
+};
+
 const context = await esbuild.context({
-  plugins: [sanitizeDrawioViewerPlugin],
+  plugins: [sanitizeDrawioViewerPlugin, guardNativeNodeImportsPlugin],
   banner: { js: banner },
   entryPoints: ['src/main.ts'],
   bundle: true,
@@ -59,6 +87,12 @@ const context = await esbuild.context({
   ],
   format: 'cjs',
   target: 'es2021',
+  // See guardNativeNodeImportsPlugin: without this, dynamic import('node:*')
+  // stays a native import() (es2021 supports the syntax) and rejects at runtime
+  // inside Obsidian's CJS plugin loader. Disabling it lowers every dynamic
+  // import to a promise-wrapped require(), which is lazy (evaluated at the call
+  // site, not at module load), so the mobile-safety rule in CLAUDE.md still holds.
+  supported: { 'dynamic-import': false },
   logLevel: 'info',
   sourcemap: prod ? false : 'inline',
   treeShaking: true,
