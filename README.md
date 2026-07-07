@@ -39,8 +39,17 @@ All three render as SVG previews in both editing and reading views, and every ed
 
 ### Platform support
 
-- **Desktop** — everything: previews and editing.
-- **Mobile (phone/tablet)** — preview only: code blocks, embeds, and standalone `.drawio` files all render as read-only previews; tapping one shows a notice that editing needs desktop. The diagram-creation entry points (ribbon, command, folder menu) are desktop-only as well, since their sole purpose is opening the editor.
+| Feature | Desktop | Tablet | Phone |
+| --- | :---: | :---: | :---: |
+| Code block & embed previews (editing and reading views) | Yes | Yes | Yes |
+| Standalone `.drawio` file tab | Inline editor | Read-only preview | Read-only preview |
+| Multi-page page switcher & `#Page-N` embeds | Yes | Yes | Yes |
+| Light/dark theme following | Yes | Yes | Yes |
+| Editing diagrams (modal / inline editor) | Yes | — | — |
+| Creating diagrams (ribbon, command, folder menu) | Yes | — | — |
+| Offline editor (bundled webapp + local server) | Yes | — | — |
+
+Phones and tablets behave identically: previews everywhere, no editing. Tapping a preview there shows a notice that editing needs desktop; the creation entry points are hidden as well, since their sole purpose is opening the editor.
 
 ## Settings
 
@@ -53,6 +62,8 @@ All three render as SVG previews in both editing and reading views, and every ed
 | **Follow Obsidian theme** | Match the editor to Obsidian's light/dark theme. |
 | **Show shape libraries** | Toggle the editor's shape panel. |
 | **Server idle timeout** | Stop the local server after this idle period (minimum 5 s). Only relevant in Offline mode. |
+
+On mobile, only **Preview alignment** and **Follow Obsidian theme** are shown — the other settings configure the desktop editor.
 
 ## Network use
 
