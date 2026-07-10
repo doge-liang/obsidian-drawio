@@ -1,6 +1,6 @@
 import { App, Platform, PluginSettingTab, Setting } from 'obsidian';
 import type DrawioPlugin from './main';
-import type { DrawioMode, NewDiagramLocation, PreviewAlignment } from './settings';
+import type { DrawioMode, NewDiagramLocation, PreviewAlignment, PreviewClickAction } from './settings';
 
 /**
  * Settings tab, rendered with the classic imperative `display()` API.
@@ -79,6 +79,31 @@ export class DrawioSettingTab extends PluginSettingTab {
             .setValue(s.newDiagramFolder)
             .onChange((v) => { s.newDiagramFolder = v; save(); }));
       }
+
+      new Setting(containerEl)
+        .setName('Open diagram files read-only')
+        .setDesc(
+          'Show a static preview instead of the embedded editor when opening .drawio files. ' +
+          'Applies to newly opened tabs. Pair with "Preview click action" below for a ' +
+          'drawio-desktop-centred workflow.',
+        )
+        .addToggle((t) => t
+          .setValue(s.readonlyFileView)
+          .onChange((v) => { s.readonlyFileView = v; save(); }));
+
+      new Setting(containerEl)
+        .setName('Preview click action')
+        .setDesc(
+          'What clicking a diagram preview does (embeds and read-only file tabs). Code blocks ' +
+          'have no underlying file, so they always open the built-in editor unless ' +
+          '"Do nothing" is selected.',
+        )
+        .addDropdown((d) => d
+          .addOption('editor', 'Open built-in editor')
+          .addOption('defaultApp', 'Open in system default app')
+          .addOption('none', 'Do nothing')
+          .setValue(s.previewClickAction)
+          .onChange((v) => { s.previewClickAction = v as PreviewClickAction; save(); }));
     }
 
     new Setting(containerEl)

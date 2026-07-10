@@ -29,6 +29,8 @@ describe('DrawioSettingTab', () => {
     expect(names).toContain('Server idle timeout (seconds)');
     expect(names).toContain('Show shape libraries');
     expect(names).toContain('New diagram location');
+    expect(names).toContain('Open diagram files read-only');
+    expect(names).toContain('Preview click action');
   });
 
   it('hides the editor-only rows on mobile, keeps preview/theme rows', () => {
@@ -42,6 +44,8 @@ describe('DrawioSettingTab', () => {
     expect(names).not.toContain('Show shape libraries');
     expect(names).not.toContain('New diagram location');
     expect(names).not.toContain('New diagram folder');
+    expect(names).not.toContain('Open diagram files read-only');
+    expect(names).not.toContain('Preview click action');
     expect(names).toContain('Preview alignment');
     expect(names).toContain('Follow Obsidian theme');
   });

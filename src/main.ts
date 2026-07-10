@@ -21,7 +21,13 @@ export default class DrawioPlugin extends Plugin {
 
     if (Platform.isDesktopApp) {
       const { DrawioFileView } = await import('./file/DrawioFileView');
-      this.registerView(DRAWIO_VIEW_TYPE, (leaf) => new DrawioFileView(leaf, this));
+      const { DrawioPreviewFileView } = await import('./preview/DrawioPreviewFileView');
+      // Decided per leaf creation, so toggling the setting affects newly
+      // opened tabs without a plugin reload (already-open tabs keep their view).
+      this.registerView(DRAWIO_VIEW_TYPE, (leaf) =>
+        this.settings.readonlyFileView
+          ? new DrawioPreviewFileView(leaf, this)
+          : new DrawioFileView(leaf, this));
     } else {
       const { DrawioPreviewFileView } = await import('./preview/DrawioPreviewFileView');
       this.registerView(DRAWIO_VIEW_TYPE, (leaf) => new DrawioPreviewFileView(leaf, this));
