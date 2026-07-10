@@ -44,7 +44,7 @@ All three render as SVG previews in both editing and reading views, and every ed
 | Feature | Desktop | Tablet | Phone |
 | --- | :---: | :---: | :---: |
 | Code block & embed previews (editing and reading views) | Yes | Yes | Yes |
-| Standalone `.drawio` file tab | Inline editor | Read-only preview | Read-only preview |
+| Standalone `.drawio` file tab | Inline editor (or read-only preview, opt-in) | Read-only preview | Read-only preview |
 | Multi-page page switcher & `#Page-N` embeds | Yes | Yes | Yes |
 | Light/dark theme following | Yes | Yes | Yes |
 | Editing diagrams (modal / inline editor) | Yes | — | — |
@@ -62,6 +62,8 @@ Phones and tablets behave identically: previews everywhere, no editing. Tapping 
 | **Editor source** | **Offline** (bundled webapp, default), **Online** (diagrams.net), or a **Custom URL**. Offline falls back to Online automatically when the bundled webapp isn't installed. |
 | **Custom drawio URL** | Used when Editor source is "Custom URL" (e.g. `https://embed.diagrams.net/`). |
 | **New diagram location** | Where the command and ribbon button create diagrams: vault root (default), the current note's folder, or a fixed folder (created if missing). The folder context menu always creates in the clicked folder. |
+| **Open diagram files read-only** | Desktop: show a static preview instead of the embedded editor when opening `.drawio` files — for workflows centred on drawio-desktop. Applies to newly opened tabs. |
+| **Preview click action** | Desktop: what clicking a preview does — open the built-in editor (default), open the file in the system default app, or nothing. Code blocks always use the built-in editor (they have no file). |
 | **Preview alignment** | Center (default) or left-align rendered previews. |
 | **Follow Obsidian theme** | Match the editor to Obsidian's light/dark theme. |
 | **Show shape libraries** | Toggle the editor's shape panel. |
