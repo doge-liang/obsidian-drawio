@@ -20,6 +20,13 @@ describe('addEditHint', () => {
     expect(labels.some((s) => s.textContent === 'Edit')).toBe(true);
   });
 
+  it('renders a custom label when given one', () => {
+    const parent = document.createElement('div');
+    addEditHint(parent, 'Open', 'external-link');
+    const labels = Array.from(parent.querySelectorAll('.drawio-edit-hint span'));
+    expect(labels.some((s) => s.textContent === 'Open')).toBe(true);
+  });
+
   it('does not register any inline click handler (clicks fall through to the preview)', () => {
     const parent = document.createElement('div');
     addEditHint(parent);
