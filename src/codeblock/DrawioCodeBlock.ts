@@ -2,6 +2,7 @@ import { MarkdownPostProcessorContext, Notice, Platform } from 'obsidian';
 import { renderPreview } from '../preview/ViewerRenderer';
 import { renderPageControl } from '../preview/pageControl';
 import { addEditHint } from '../preview/editHint';
+import { resolveClickAction } from '../preview/clickAction';
 import { getDiagramPages, ensureMxfile } from '../model/xmlUtils';
 import { CodeBlockSource } from './CodeBlockSource';
 import type DrawioPlugin from '../main';
@@ -19,7 +20,9 @@ function renderCodeBlock(
   ctx: MarkdownPostProcessorContext,
 ) {
   const wrapper = el.createDiv({ cls: 'drawio-codeblock' });
-  wrapper.setAttribute('title', Platform.isDesktopApp ? 'Click to edit diagram' : 'Drawio diagram');
+  const action = resolveClickAction(plugin.settings.previewClickAction, 'codeblock');
+  wrapper.setAttribute('title', Platform.isDesktopApp ? action.title : 'Drawio diagram');
+  wrapper.toggleClass('drawio-no-action', Platform.isDesktopApp && action.kind === 'none');
   const preview = wrapper.createDiv({ cls: 'drawio-preview' });
 
   const wrapped = ensureMxfile(source);
@@ -39,17 +42,21 @@ function renderCodeBlock(
     });
   }
 
-  if (Platform.isDesktopApp) {
-    addEditHint(wrapper);
+  if (Platform.isDesktopApp && action.hint) {
+    addEditHint(wrapper, action.hint.label, action.hint.icon);
   }
 
-  // Click anywhere on the diagram to edit (the centered hint shows on hover).
-  // Mobile has no editor in this phase — show a Notice instead.
+  // Click anywhere on the diagram (the centered hint shows on hover). The
+  // action is re-resolved at click time so settings changes apply to
+  // already-rendered blocks. Mobile has no editor — show a Notice instead.
   wrapper.addEventListener('click', () => {
-    if (Platform.isDesktopApp) {
-      plugin.openEditor(new CodeBlockSource(plugin.app, ctx, el, source));
-    } else {
+    if (!Platform.isDesktopApp) {
       new Notice('Drawio: editing is only available on desktop');
+      return;
+    }
+    const current = resolveClickAction(plugin.settings.previewClickAction, 'codeblock');
+    if (current.kind === 'editor') {
+      plugin.openEditor(new CodeBlockSource(plugin.app, ctx, el, source));
     }
   });
 }

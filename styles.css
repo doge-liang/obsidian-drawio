@@ -29,6 +29,8 @@
 .drawio-embed:hover .drawio-edit-hint,
 .drawio-codeblock:focus-within .drawio-edit-hint,
 .drawio-embed:focus-within .drawio-edit-hint { opacity: .92; }
+/* Previews whose click action is "Do nothing" shouldn't advertise clickability. */
+.drawio-codeblock.drawio-no-action, .drawio-embed.drawio-no-action { cursor: default; }
 
 .drawio-error {
   padding: 8px 12px; color: var(--text-error);

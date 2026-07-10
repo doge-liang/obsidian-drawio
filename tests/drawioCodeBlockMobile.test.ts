@@ -7,14 +7,16 @@ vi.mock('../src/preview/viewer.min.txt', () => ({ default: 'window.GraphViewer =
 
 import { Platform } from 'obsidian';
 import { registerDrawioCodeBlock } from '../src/codeblock/DrawioCodeBlock';
+import type { PreviewClickAction } from '../src/settings';
 import type DrawioPlugin from '../src/main';
 
 type Processor = (source: string, el: HTMLElement, ctx: unknown) => void;
 
-function fakePlugin(openEditor: DrawioPlugin['openEditor']) {
+function fakePlugin(openEditor: DrawioPlugin['openEditor'], previewClickAction: PreviewClickAction = 'editor') {
   let processor: Processor | undefined;
   const raw = {
     app: {},
+    settings: { previewClickAction },
     previewOpts: () => ({ dark: false, align: 'center' as const }),
     openEditor,
     registerMarkdownCodeBlockProcessor: (_lang: string, cb: Processor) => { processor = cb; },
@@ -41,6 +43,29 @@ describe('drawio code block — mobile click behavior', () => {
     el.querySelector('.drawio-codeblock')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(openEditor).toHaveBeenCalledTimes(1);
     expect(el.querySelector('.drawio-edit-hint')).not.toBeNull();
+  });
+
+  it('still opens the built-in editor under "defaultApp" (code blocks have no file)', () => {
+    Platform.isDesktopApp = true;
+    const openEditor = vi.fn();
+    const { plugin, run } = fakePlugin(openEditor, 'defaultApp');
+    registerDrawioCodeBlock(plugin);
+    const el = document.createElement('div');
+    run(XML, el, { sourcePath: 'note.md' });
+    el.querySelector('.drawio-codeblock')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(openEditor).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing on click under "none", with no edit hint', () => {
+    Platform.isDesktopApp = true;
+    const openEditor = vi.fn();
+    const { plugin, run } = fakePlugin(openEditor, 'none');
+    registerDrawioCodeBlock(plugin);
+    const el = document.createElement('div');
+    run(XML, el, { sourcePath: 'note.md' });
+    el.querySelector('.drawio-codeblock')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(openEditor).not.toHaveBeenCalled();
+    expect(el.querySelector('.drawio-edit-hint')).toBeNull();
   });
 
   it('shows a Notice instead of opening the editor on mobile, with no edit hint', () => {
