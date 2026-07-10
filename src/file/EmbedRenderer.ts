@@ -2,6 +2,7 @@ import { MarkdownPostProcessorContext, MarkdownRenderChild, Notice, Platform, TF
 import { renderPreview } from '../preview/ViewerRenderer';
 import { renderPageControl } from '../preview/pageControl';
 import { addEditHint } from '../preview/editHint';
+import { resolveClickAction, openWithDefaultApp } from '../preview/clickAction';
 import { getDiagramPages, resolvePageFromSubpath, ensureMxfile } from '../model/xmlUtils';
 import { FileSource } from './FileSource';
 import { DRAWIO_FILE_EXT } from '../constants';
@@ -76,7 +77,9 @@ class DrawioFileEmbed extends MarkdownRenderChild {
     const el = this.containerEl;
     el.empty();
     el.addClass('drawio-embed');
-    el.setAttribute('title', Platform.isDesktopApp ? 'Click to edit diagram' : 'Drawio diagram');
+    const action = resolveClickAction(this.plugin.settings.previewClickAction, 'file');
+    el.setAttribute('title', Platform.isDesktopApp ? action.title : 'Drawio diagram');
+    el.toggleClass('drawio-no-action', Platform.isDesktopApp && action.kind === 'none');
     try {
       const xml = await this.plugin.app.vault.read(this.file);
       const wrapped = ensureMxfile(xml);
@@ -106,22 +109,29 @@ class DrawioFileEmbed extends MarkdownRenderChild {
         });
       }
 
-      if (Platform.isDesktopApp) {
-        addEditHint(el);
+      if (Platform.isDesktopApp && action.hint) {
+        addEditHint(el, action.hint.label, action.hint.icon);
       }
     } catch (err) {
       el.createDiv({ cls: 'drawio-error', text: `Failed to render diagram: ${String(err)}` });
     }
-    // Wire click-to-edit once (survives re-renders; el.empty() keeps the listener).
+    // Wire the click handler once (survives re-renders; el.empty() keeps the
+    // listener). The action is re-resolved at click time so settings changes
+    // apply to already-rendered embeds.
     if (!el.dataset.drawioClick) {
       el.dataset.drawioClick = '1';
       el.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (Platform.isDesktopApp) {
-          this.plugin.openEditor(new FileSource(this.plugin.app, this.file));
-        } else {
+        if (!Platform.isDesktopApp) {
           new Notice('Drawio: editing is only available on desktop');
+          return;
+        }
+        const current = resolveClickAction(this.plugin.settings.previewClickAction, 'file');
+        if (current.kind === 'editor') {
+          this.plugin.openEditor(new FileSource(this.plugin.app, this.file));
+        } else if (current.kind === 'defaultApp') {
+          openWithDefaultApp(this.plugin.app, this.file.path);
         }
       });
     }
@@ -146,12 +156,18 @@ function registerEmbedPostProcessor(plugin: DrawioPlugin) {
       const file = plugin.app.metadataCache.getFirstLinkpathDest(path, ctx.sourcePath);
       if (!(file instanceof TFile)) continue;
       span.dataset.drawioEmbed = '1';
-      span.setAttribute('title', Platform.isDesktopApp ? 'Click to edit diagram' : 'Drawio diagram');
+      const action = resolveClickAction(plugin.settings.previewClickAction, 'file');
+      span.setAttribute('title', Platform.isDesktopApp ? action.title : 'Drawio diagram');
       span.addEventListener('click', () => {
-        if (Platform.isDesktopApp) {
-          plugin.openEditor(new FileSource(plugin.app, file));
-        } else {
+        if (!Platform.isDesktopApp) {
           new Notice('Drawio: editing is only available on desktop');
+          return;
+        }
+        const current = resolveClickAction(plugin.settings.previewClickAction, 'file');
+        if (current.kind === 'editor') {
+          plugin.openEditor(new FileSource(plugin.app, file));
+        } else if (current.kind === 'defaultApp') {
+          openWithDefaultApp(plugin.app, file.path);
         }
       });
       void renderEmbedInto(plugin, span, file, subpath);
@@ -188,8 +204,10 @@ async function renderEmbedInto(
       });
     }
 
-    if (Platform.isDesktopApp) {
-      addEditHint(span);
+    const action = resolveClickAction(plugin.settings.previewClickAction, 'file');
+    span.toggleClass('drawio-no-action', Platform.isDesktopApp && action.kind === 'none');
+    if (Platform.isDesktopApp && action.hint) {
+      addEditHint(span, action.hint.label, action.hint.icon);
     }
   } catch (err) {
     span.empty();
