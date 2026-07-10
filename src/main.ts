@@ -23,8 +23,8 @@ export default class DrawioPlugin extends Plugin {
       const { DrawioFileView } = await import('./file/DrawioFileView');
       this.registerView(DRAWIO_VIEW_TYPE, (leaf) => new DrawioFileView(leaf, this));
     } else {
-      const { DrawioMobileFileView } = await import('./preview/DrawioMobileFileView');
-      this.registerView(DRAWIO_VIEW_TYPE, (leaf) => new DrawioMobileFileView(leaf, this));
+      const { DrawioPreviewFileView } = await import('./preview/DrawioPreviewFileView');
+      this.registerView(DRAWIO_VIEW_TYPE, (leaf) => new DrawioPreviewFileView(leaf, this));
     }
     this.registerExtensions([DRAWIO_FILE_EXT], DRAWIO_VIEW_TYPE);
 

@@ -56,8 +56,11 @@
 .drawio-file-view { height: 100%; padding: 0; }
 .drawio-file-view .drawio-iframe { width: 100%; height: 100%; }
 
-/* ---- Read-only mobile file view (.drawio files, mobile) ---- */
-.drawio-mobile-file-view { height: 100%; overflow: auto; padding: 12px; }
+/* ---- Read-only file view (.drawio files: always on mobile, opt-in on desktop) ---- */
+.drawio-preview-file-view { position: relative; height: 100%; overflow: auto; padding: 12px; }
+.drawio-preview-file-view.drawio-clickable { cursor: pointer; }
+.drawio-preview-file-view:hover .drawio-edit-hint,
+.drawio-preview-file-view:focus-within .drawio-edit-hint { opacity: .92; }
 .drawio-mobile-banner {
   margin-bottom: 12px; padding: 6px 12px;
   border: 1px solid var(--background-modifier-border); border-radius: 6px;

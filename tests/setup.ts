@@ -42,3 +42,6 @@ proto.createEl = function (this: HTMLElement, tag: string, attrs?: ElAttrs) {
 proto.addClass = function (this: HTMLElement, ...cls: string[]) {
   this.classList.add(...cls);
 };
+proto.toggleClass = function (this: HTMLElement, cls: string | string[], value: boolean) {
+  for (const c of Array.isArray(cls) ? cls : [cls]) this.classList.toggle(c, value);
+};
