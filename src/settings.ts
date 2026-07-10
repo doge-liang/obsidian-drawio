@@ -2,6 +2,7 @@ export type DrawioMode = 'online' | 'offline' | 'custom';
 export type StoreFormat = 'xml' | 'compressed';
 export type NewDiagramLocation = 'root' | 'current' | 'folder';
 export type PreviewAlignment = 'center' | 'left';
+export type PreviewClickAction = 'editor' | 'defaultApp' | 'none';
 
 export interface DrawioSettings {
   drawioMode: DrawioMode;
@@ -16,6 +17,10 @@ export interface DrawioSettings {
   /** Target folder for new diagrams when newDiagramLocation is 'folder'. */
   newDiagramFolder: string;
   previewAlignment: PreviewAlignment;
+  /** Desktop: open .drawio files as a static preview instead of the editor. */
+  readonlyFileView: boolean;
+  /** Desktop: what clicking a preview does (embeds and read-only file tabs). */
+  previewClickAction: PreviewClickAction;
 }
 
 export const DEFAULT_SETTINGS: DrawioSettings = {
@@ -30,4 +35,6 @@ export const DEFAULT_SETTINGS: DrawioSettings = {
   newDiagramLocation: 'root',
   newDiagramFolder: '',
   previewAlignment: 'center',
+  readonlyFileView: false,
+  previewClickAction: 'editor',
 };

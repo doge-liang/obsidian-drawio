@@ -35,6 +35,11 @@ describe('DEFAULT_SETTINGS', () => {
     expect(DEFAULT_SETTINGS.previewAlignment).toBe('center');
   });
 
+  it('defaults to the editable file view with the built-in editor click action', () => {
+    expect(DEFAULT_SETTINGS.readonlyFileView).toBe(false);
+    expect(DEFAULT_SETTINGS.previewClickAction).toBe('editor');
+  });
+
   it('exposes exactly the documented settings keys (guards accidental shape drift)', () => {
     expect(Object.keys(DEFAULT_SETTINGS).sort()).toEqual(
       [
@@ -44,6 +49,8 @@ describe('DEFAULT_SETTINGS', () => {
         'newDiagramFolder',
         'newDiagramLocation',
         'previewAlignment',
+        'previewClickAction',
+        'readonlyFileView',
         'serverIdleTimeout',
         'serverPortMax',
         'serverPortMin',
