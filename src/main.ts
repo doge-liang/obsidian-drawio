@@ -1,5 +1,6 @@
 import { Plugin, FileSystemAdapter, Platform } from 'obsidian';
 import { OfflineEditorNotInstalledError } from './model/errors';
+import { InstallStatus } from './model/installStatus';
 import { DrawioSettings, DEFAULT_SETTINGS } from './settings';
 import type { ServerManager } from './server/ServerManager';
 import { DrawioModal } from './editor/DrawioModal';
@@ -11,6 +12,9 @@ import { DRAWIO_VIEW_TYPE, DRAWIO_FILE_EXT, ONLINE_DRAWIO_URL } from './constant
 export default class DrawioPlugin extends Plugin {
   settings!: DrawioSettings;
   server: ServerManager | null = null;
+  /** Offline-webapp install state — on the plugin (not the settings tab) so a
+   * mid-install settings re-render can re-attach to the running install. */
+  webappInstallStatus = new InstallStatus();
 
   async onload() {
     await this.loadSettings();
