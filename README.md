@@ -12,7 +12,7 @@ Embed, preview, and edit [draw.io](https://www.drawio.com/) (diagrams.net) diagr
 
 - **Three surfaces, one plugin** — inline `` ```drawio `` code blocks, standalone `.drawio` files (Excalidraw-style: the editor lives right in the file's tab), and `![[file.drawio]]` embeds. All three render live SVG previews in both editing and reading views; click any preview to edit.
 - **Offline previews, always** — previews are produced by drawio's own viewer bundled into the plugin: no iframe, no network, on desktop and mobile alike.
-- **Offline editor, optionally** — the editor defaults to a bundled, fully offline drawio build served from a local server. When that bundle isn't installed (store installs), it automatically falls back to the online diagrams.net editor — so it works out of the box either way.
+- **Offline editor, optionally** — the editor defaults to a bundled, fully offline drawio build served from a local server. Store installs don't include the bundle (~145 MB); install it with one click from the plugin settings, or switch the editor source to Online.
 - **Readable, git-friendly storage** — diagrams are saved as uncompressed, pretty-printed XML rather than a compressed blob, so diffs, sync, and version history stay meaningful.
 - **Multi-page aware** — multi-page diagrams get a compact page switcher (‹ 2 / 5 ›) under the preview, and `![[file.drawio#Page-2]]` opens the embed on the page named "Page-2".
 - **Fits into Obsidian** — follows your light/dark theme, keeps working in popped-out windows, sanitizes rendered SVG before insertion, and supports phones and tablets (preview-only there — see [Platform support](#platform-support)).
@@ -23,7 +23,7 @@ Embed, preview, and edit [draw.io](https://www.drawio.com/) (diagrams.net) diagr
 2. Click the **ribbon button**, run the **Create new diagram** command, or right-click a folder in the file explorer and choose **New drawio diagram**.
 3. A new `.drawio` file opens with the editor embedded in its tab. Draw — changes autosave back to the file.
 
-No extra setup is needed: a store install uses the online diagrams.net editor automatically. To make editing fully offline as well, see [Offline editor](#offline-editor-optional).
+The editor needs one of: the offline editor installed (one click in settings, ~53 MB download), or **Editor source → Online** in the plugin settings. See [Offline editor](#offline-editor-optional).
 
 ## Usage
 
@@ -59,7 +59,7 @@ Phones and tablets behave identically: previews everywhere, no editing. Tapping 
 
 | Setting | Description |
 | --- | --- |
-| **Editor source** | **Offline** (bundled webapp, default), **Online** (diagrams.net), or a **Custom URL**. Offline falls back to Online automatically when the bundled webapp isn't installed. |
+| **Editor source** | **Offline** (bundled webapp, default), **Online** (diagrams.net), or a **Custom URL**. Offline requires the one-time install below — there is no automatic fallback. |
 | **Custom drawio URL** | Used when Editor source is "Custom URL" (e.g. `https://embed.diagrams.net/`). |
 | **New diagram location** | Where the command and ribbon button create diagrams: vault root (default), the current note's folder, or a fixed folder (created if missing). The folder context menu always creates in the clicked folder. |
 | **Open diagram files read-only** | Desktop: show a static preview instead of the embedded editor when opening `.drawio` files — for workflows centred on drawio-desktop. Applies to newly opened tabs. |
@@ -75,17 +75,13 @@ On mobile, only **Preview alignment** and **Follow Obsidian theme** are shown �
 
 - **Previews never use the network.** They are rendered by drawio's `viewer.min.js`, which is bundled into the plugin.
 - **With the bundled offline editor**, the plugin makes **no network requests at all** — the editor is served from a local `127.0.0.1` HTTP server.
-- **When the bundle isn't installed** (the store-install default), the editor UI is loaded from `https://embed.diagrams.net/`. Your diagram content still stays on your device — it is passed to the editor in the page and is **not uploaded**; only the editor's assets are fetched. You can also explicitly choose Online or a Custom URL in settings.
+- **When the bundle isn't installed**, Offline mode shows an install prompt instead of silently going online. If you choose **Online** (or a Custom URL), the editor UI is loaded from that origin. Your diagram content still stays on your device — it is passed to the editor in the page and is **not uploaded**; only the editor's assets are fetched.
 
 ## Offline editor (optional)
 
-A store install ships without the offline drawio webapp (it is ~145 MB, beyond store limits). To make editing fully offline, build from source:
+A store install ships without the offline drawio webapp (it is ~145 MB, beyond store limits). To install it, open **Settings → Drawio**, select **Editor source → Offline (bundled webapp)**, and click **Install** — a one-time ~53 MB download from GitHub; editing is fully offline afterwards.
 
-1. `git clone https://github.com/doge-liang/obsidian-drawio && cd obsidian-drawio && npm install`
-2. `npm run fetch-drawio` — downloads the pinned drawio webapp (~40 MB download, ~145 MB extracted; needs network access to GitHub plus `unzip` or `python3`).
-3. `npm run build`
-4. Copy `main.js`, `manifest.json`, `styles.css`, and the `webapp/` folder into `<vault>/.obsidian/plugins/drawio-editor/`.
-5. Enable **Drawio**, then set **Editor source → Offline (bundled webapp)** in the plugin settings.
+Building from source also works and produces the same layout: run `npm run fetch-drawio` before `npm run build` and copy the `webapp/` folder alongside `main.js` (see Development below).
 
 ## Notes & limitations
 
