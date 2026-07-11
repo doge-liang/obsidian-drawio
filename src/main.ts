@@ -53,10 +53,11 @@ export default class DrawioPlugin extends Plugin {
     this.server?.stop();
   }
 
-  /** Absolute path to this plugin's folder on disk. Desktop-only caller
-   * (resolveBaseUrl's offline branch) — dynamically imports node:path so this
-   * method's own presence in main.ts never triggers an eager require() on
-   * mobile. */
+  /** Absolute path to this plugin's folder on disk. Desktop-only callers
+   * (resolveBaseUrl's offline branch, isWebappInstalled(),
+   * installedWebappVersion(), and the settings tab's install flow) —
+   * dynamically imports node:path so this method's own presence in main.ts
+   * never triggers an eager require() on mobile. */
   async pluginDir(): Promise<string> {
     const adapter = this.app.vault.adapter;
     if (adapter instanceof FileSystemAdapter) {

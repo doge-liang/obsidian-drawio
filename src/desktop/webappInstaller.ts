@@ -25,7 +25,25 @@ export async function installWebapp(
 ): Promise<void> {
   const war = await download(DRAWIO_WAR_URL, onProgress);
   onProgress({ phase: 'extract' });
+  // unzipSync + thousands of sync writes block the renderer's main thread;
+  // without a committed frame first, the "Extracting…" label never paints and
+  // the UI freezes on a stale download percentage. Double-rAF guarantees a
+  // frame commit; the trailing setTimeout yields the macrotask before we block.
+  await nextPaint();
   installFromWar(war, pluginDir);
+}
+
+/** Resolve after the renderer has committed a frame (double-rAF), then one
+ * macrotask later — the last chance to show fresh progress text before a
+ * long synchronous block. */
+function nextPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    activeWindow.requestAnimationFrame(() => {
+      activeWindow.requestAnimationFrame(() => {
+        activeWindow.setTimeout(resolve, 0);
+      });
+    });
+  });
 }
 
 /** The post-download half, separated for network-free testing: extract into a
@@ -45,8 +63,10 @@ export function installFromWar(war: Uint8Array, pluginDir: string): void {
     writeFileSync(join(staging, 'DRAWIO_VERSION'), DRAWIO_VERSION + '\n');
     swapWebappIntoPlace(pluginDir);
   } catch (e) {
-    // After a successful swap this rmSync targets a staging dir that no
-    // longer exists — force:true makes that a harmless no-op.
+    // A successful swap never reaches here — this only runs when extract,
+    // validation, or the swap itself failed before or during the staging
+    // rename, so staging still exists (or, if the swap already renamed it
+    // away, force:true makes this a harmless no-op).
     rmSync(staging, { recursive: true, force: true });
     throw e;
   }

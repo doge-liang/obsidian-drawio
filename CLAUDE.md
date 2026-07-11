@@ -80,9 +80,11 @@ name; the manifest id inside is `drawio-editor`).
   `require(...)` call — which throws immediately on mobile (no Node runtime),
   crashing the *entire plugin load* before `onload()` even runs. Fixed by
   never letting a `node:*`/`electron` import be *static and top-level* outside
-  `src/server/**` or `src/desktop/**` — both are only ever reached through the
-  one `Platform.isDesktopApp`-gated dynamic import in `main.ts`'s
-  `maybeRegisterDesktopFeatures()`. A dynamic `await import(...)` at the point
+  `src/server/**` or `src/desktop/**` — both are only ever reached through
+  `Platform.isDesktopApp`-gated dynamic imports: `main.ts`'s
+  `maybeRegisterDesktopFeatures()`, and `settingsTab.ts`'s `startInstall()`
+  (whose offline-editor row only renders inside the tab's desktop-gated
+  block). A dynamic `await import(...)` at the point
   of use (e.g. `main.ts`'s `pluginDir()`/`resolveBaseUrl()`) is fine anywhere,
   since it's never eagerly evaluated — only a *static* top-level import gets
   hoisted and unconditionally `require()`d. **If you add a new Node/Electron

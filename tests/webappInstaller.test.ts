@@ -37,6 +37,7 @@ describe('installFromWar', () => {
     installFromWar(makeWar(), dir);
     expect(existsSync(join(dir, 'webapp', 'stale.txt'))).toBe(false);
     expect(existsSync(join(dir, 'webapp', 'index.html'))).toBe(true);
+    expect(existsSync(join(dir, 'webapp.old'))).toBe(false);
   });
 
   it('cleans leftover webapp.installing from a previously interrupted run', () => {
