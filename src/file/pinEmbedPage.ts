@@ -45,21 +45,24 @@ export async function pinEmbedPage(
     });
   }
 
-  let outcome: PinOutcome = 'error';
+  // Assigned inside the process callback; boxed so TS's control-flow
+  // narrowing (which ignores closure assignments) tracks the union type.
+  const result: { outcome: PinOutcome } = { outcome: 'error' };
   try {
     await app.vault.process(note, (data) => {
       const r = rewriteEmbedSubpath(data, candidates, originalSubpath, pageName);
       if (r.outcome !== 'ok') {
-        outcome = r.outcome;
+        result.outcome = r.outcome;
         return data;
       }
-      outcome = 'pinned';
+      result.outcome = 'pinned';
       return r.text;
     });
   } catch (err) {
     new Notice(`Drawio: failed to update the note — ${String(err)}`);
     return 'error';
   }
+  const outcome = result.outcome;
 
   if (outcome === 'pinned') {
     new Notice(`Drawio: link updated to page "${pageName}".`);
