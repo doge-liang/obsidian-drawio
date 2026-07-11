@@ -21,6 +21,8 @@ Run in a desktop test vault after `npm run build` and copying the plugin (or sym
 
 ## Settings / theming
 - [ ] Switching Obsidian dark/light updates the editor theme on the next editor open.
+- [ ] Changing "Preview alignment" realigns already-rendered previews immediately (no re-render), including in a popped-out window.
+- [ ] Disabling the plugin removes the left-alignment (previews in still-open notes fall back to centered).
 - [ ] "Custom URL" mode loads the editor from the configured URL (e.g. https://embed.diagrams.net/).
 - [ ] Server idle timeout persists across reloads; values below 5 are rejected.
 

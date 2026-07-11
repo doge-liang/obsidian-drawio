@@ -108,12 +108,16 @@ export class DrawioSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Preview alignment')
-      .setDesc('How rendered previews (embeds and code blocks) are aligned. Applies when a note is re-rendered.')
+      .setDesc('How rendered previews (embeds and code blocks) are aligned. Takes effect immediately.')
       .addDropdown((d) => d
         .addOption('center', 'Center')
         .addOption('left', 'Left')
         .setValue(s.previewAlignment)
-        .onChange((v) => { s.previewAlignment = v as PreviewAlignment; save(); }));
+        .onChange((v) => {
+          s.previewAlignment = v as PreviewAlignment;
+          save();
+          this.plugin.applyPreviewAlignment();
+        }));
 
     new Setting(containerEl)
       .setName('Follow Obsidian theme')

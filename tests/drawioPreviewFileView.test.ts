@@ -16,7 +16,7 @@ function fakePlugin(
   return {
     app,
     settings: { previewClickAction },
-    previewOpts: () => ({ dark: false, align: 'center' as const }),
+    previewOpts: () => ({ dark: false }),
     openEditor,
   } as unknown as DrawioPlugin;
 }

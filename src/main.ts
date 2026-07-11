@@ -37,6 +37,17 @@ export default class DrawioPlugin extends Plugin {
     const { registerDrawioEmbeds } = await import('./file/EmbedRenderer');
     registerDrawioEmbeds(this);
 
+    // Preview alignment is a body-level class (see styles.css), so flipping
+    // the setting realigns already-rendered previews — including ones Obsidian
+    // keeps cached and detached — without waiting for a re-render. New popout
+    // windows get the class on creation; unload clears it everywhere.
+    this.applyPreviewAlignment();
+    this.registerEvent(this.app.workspace.on('window-open', (_win, popoutWin) => {
+      popoutWin.document.body.classList.toggle(
+        'drawio-align-left', this.settings.previewAlignment === 'left');
+    }));
+    this.register(() => setPreviewAlignmentClass(this, false));
+
     await maybeRegisterDesktopFeatures(this);
 
     const { DrawioSettingTab } = await import('./settingsTab');
@@ -100,8 +111,12 @@ export default class DrawioPlugin extends Plugin {
   previewOpts(): RenderOptions {
     return {
       dark: this.settings.followObsidianTheme && this.isDark(),
-      align: this.settings.previewAlignment,
     };
+  }
+
+  /** Sync the body-level alignment class with the current setting. */
+  applyPreviewAlignment() {
+    setPreviewAlignmentClass(this, this.settings.previewAlignment === 'left');
   }
 
   /** Shared deps for any DrawioEditor surface (modal or inline file view).
@@ -134,6 +149,18 @@ export default class DrawioPlugin extends Plugin {
   updateServerIdleTimeout() {
     this.server?.setIdleMs(this.settings.serverIdleTimeout * 1000);
   }
+}
+
+/** Toggle the `drawio-align-left` class on every window's body (main window
+ * plus any popouts, found via their leaves). Alignment lives on the body so a
+ * settings change takes effect on previews Obsidian has already rendered.
+ * Exported standalone so it's unit-testable without a full Plugin instance. */
+export function setPreviewAlignmentClass(plugin: DrawioPlugin, left: boolean): void {
+  const bodies = new Set<HTMLElement>([activeDocument.body]);
+  plugin.app.workspace.iterateAllLeaves((leaf) => {
+    bodies.add(leaf.view.containerEl.ownerDocument.body);
+  });
+  for (const body of bodies) body.classList.toggle('drawio-align-left', left);
 }
 
 /** Dynamically load and run desktop-only registration (local server, ribbon,
