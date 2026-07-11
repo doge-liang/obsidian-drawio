@@ -113,4 +113,21 @@ describe('offline editor status row', () => {
     tab.display();
     expect(statusRow(tab.containerEl)).toBeNull();
   });
+
+  it('drops the CTA styling once the button leaves the Install state', async () => {
+    Platform.isDesktopApp = true;
+    const plugin = fakePlugin();
+    const tab = new DrawioSettingTab({} as never, plugin);
+    tab.display();
+    const row = statusRow(tab.containerEl)!;
+    const button = row.querySelector<HTMLButtonElement>('button')!;
+    await vi.waitFor(() => {
+      expect(button.textContent).toBe('Install');
+      expect(button.classList.contains('mod-cta')).toBe(true);
+    });
+    (plugin as unknown as { webappInstallStatus: InstallStatus }).webappInstallStatus
+      .set({ status: 'installing', progressText: 'Downloading… 10%' });
+    expect(button.textContent).toBe('Installing…');
+    expect(button.classList.contains('mod-cta')).toBe(false);
+  });
 });

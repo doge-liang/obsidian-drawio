@@ -82,7 +82,8 @@ class TextComponent {
 export class ButtonComponent {
   buttonEl: HTMLButtonElement = document.createElement('button');
   setButtonText(t: string): this { this.buttonEl.textContent = t; return this; }
-  setCta(): this { return this; }
+  setCta(): this { this.buttonEl.classList.add('mod-cta'); return this; }
+  removeCta(): this { this.buttonEl.classList.remove('mod-cta'); return this; }
   setDisabled(d: boolean): this { this.buttonEl.disabled = d; return this; }
   onClick(cb: (evt: MouseEvent) => unknown): this {
     this.buttonEl.addEventListener('click', () => { void cb(new MouseEvent('click')); });

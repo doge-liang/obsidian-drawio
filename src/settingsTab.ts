@@ -168,6 +168,7 @@ export class DrawioSettingTab extends PluginSettingTab {
 
     const status = this.plugin.webappInstallStatus;
     const refresh = async (state: WebappInstallState) => {
+      button.removeCta();
       if (state.status === 'installing') {
         setting.setDesc(state.progressText);
         button.setButtonText('Installing…').setDisabled(true);
