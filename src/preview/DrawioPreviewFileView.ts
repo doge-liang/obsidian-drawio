@@ -53,7 +53,12 @@ export class DrawioPreviewFileView extends TextFileView {
       });
     }
 
-    const preview = c.createDiv({ cls: 'drawio-preview' });
+    // The hint's absolute centring must resolve against the diagram, not the
+    // tab-filling contentEl (there it floats mid-tab in empty space) — and it
+    // can't live inside .drawio-preview, which renderPreview() empties on
+    // every (re-)render, so a page flip would silently drop it.
+    const previewWrap = c.createDiv({ cls: 'drawio-preview-wrap' });
+    const preview = previewWrap.createDiv({ cls: 'drawio-preview' });
     const pages = getDiagramPages(ensureMxfile(this.data));
     renderPreview(preview, this.data, { ...this.plugin.previewOpts(), page: 0 });
 
@@ -69,7 +74,7 @@ export class DrawioPreviewFileView extends TextFileView {
     }
 
     if (Platform.isDesktopApp && action.hint) {
-      addEditHint(c, action.hint.label, action.hint.icon);
+      addEditHint(previewWrap, action.hint.label, action.hint.icon);
     }
   }
 
