@@ -30,7 +30,8 @@ export async function installWebapp(
 
 /** The post-download half, separated for network-free testing: extract into a
  * staging dir, validate, then atomically swap into place. On any failure the
- * staging dir is removed and an existing webapp/ is left untouched. */
+ * staging dir is removed; an existing webapp/ is either left fully in place
+ * or fully restored — see `swapWebappIntoPlace`. */
 export function installFromWar(war: Uint8Array, pluginDir: string): void {
   const staging = join(pluginDir, 'webapp.installing');
   rmSync(staging, { recursive: true, force: true });
@@ -42,12 +43,59 @@ export function installFromWar(war: Uint8Array, pluginDir: string): void {
       }
     }
     writeFileSync(join(staging, 'DRAWIO_VERSION'), DRAWIO_VERSION + '\n');
-    const dest = join(pluginDir, 'webapp');
-    rmSync(dest, { recursive: true, force: true });
-    renameSync(staging, dest);
+    swapWebappIntoPlace(pluginDir);
   } catch (e) {
+    // After a successful swap this rmSync targets a staging dir that no
+    // longer exists — force:true makes that a harmless no-op.
     rmSync(staging, { recursive: true, force: true });
     throw e;
+  }
+}
+
+/**
+ * Swap <pluginDir>/webapp.installing into <pluginDir>/webapp via
+ * rename-aside, so an existing webapp/ is either fully in place or fully
+ * restored — never partially deleted. A plain "rmSync(dest) then
+ * renameSync(staging, dest)" can leave NO webapp at all if the delete is a
+ * recursive tree removal that throws partway (e.g. a locked file on
+ * Windows) or if the rename itself fails after the delete already
+ * succeeded. Directory renames are single atomic filesystem operations —
+ * they either happen or don't — so renaming the old webapp/ aside first
+ * (instead of deleting it) means any later failure can roll it straight
+ * back into place.
+ *
+ * A `webapp.old/` leftover may remain only if the process crashes between
+ * the aside-rename and the final cleanup below; it is harmless (not read by
+ * anything) and is cleared automatically at the top of the next install.
+ *
+ * Exported for tests: the rollback path needs failure injection (a missing
+ * staging dir stands in for a swap that fails partway).
+ */
+export function swapWebappIntoPlace(pluginDir: string): void {
+  const staging = join(pluginDir, 'webapp.installing');
+  const dest = join(pluginDir, 'webapp');
+  const old = join(pluginDir, 'webapp.old');
+
+  rmSync(old, { recursive: true, force: true }); // leftover from a past interrupted swap
+  let oldAside = false;
+  if (existsSync(dest)) {
+    renameSync(dest, old); // atomic: on failure, dest is fully intact
+    oldAside = true;
+  }
+  try {
+    renameSync(staging, dest);
+  } catch (e) {
+    if (oldAside) renameSync(old, dest); // roll the old install back into place
+    throw e;
+  }
+  if (oldAside) {
+    try {
+      rmSync(old, { recursive: true, force: true });
+    } catch {
+      // The install itself succeeded; a locked leftover webapp.old is
+      // cleared by the next install's leading rmSync. Don't fail a
+      // successful install over cleanup of the old copy.
+    }
   }
 }
 

@@ -3,7 +3,7 @@ import { zipSync, strToU8 } from 'fflate';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { installFromWar } from '../src/desktop/webappInstaller';
+import { installFromWar, swapWebappIntoPlace } from '../src/desktop/webappInstaller';
 import { DRAWIO_VERSION } from '../src/constants';
 
 function makeWar(entries: Record<string, Uint8Array> = {}): Uint8Array {
@@ -65,5 +65,27 @@ describe('installFromWar', () => {
     expect(() => installFromWar(evil, dir)).toThrow(/[Uu]nsafe zip entry/);
     expect(existsSync(join(dir, 'evil.txt'))).toBe(false);
     expect(existsSync(join(dir, 'webapp.installing'))).toBe(false);
+  });
+});
+
+describe('swapWebappIntoPlace', () => {
+  it('rolls the old webapp back when the staging rename fails', () => {
+    mkdirSync(join(dir, 'webapp'), { recursive: true });
+    writeFileSync(join(dir, 'webapp', 'marker.txt'), 'original install');
+    // No webapp.installing/ created, so the staging rename throws ENOENT
+    // after the old webapp has already been renamed aside.
+    expect(() => swapWebappIntoPlace(dir)).toThrow();
+    expect(readFileSync(join(dir, 'webapp', 'marker.txt'), 'utf8')).toBe('original install');
+    expect(existsSync(join(dir, 'webapp.old'))).toBe(false);
+  });
+
+  it('clears a leftover webapp.old from a previous crash', () => {
+    mkdirSync(join(dir, 'webapp.old'), { recursive: true });
+    writeFileSync(join(dir, 'webapp.old', 'junk.txt'), 'junk');
+    mkdirSync(join(dir, 'webapp.installing'), { recursive: true });
+    writeFileSync(join(dir, 'webapp.installing', 'index.html'), 'new install');
+    swapWebappIntoPlace(dir);
+    expect(existsSync(join(dir, 'webapp.old'))).toBe(false);
+    expect(readFileSync(join(dir, 'webapp', 'index.html'), 'utf8')).toBe('new install');
   });
 });
