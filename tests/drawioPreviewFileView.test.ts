@@ -109,6 +109,24 @@ describe('DrawioPreviewFileView', () => {
     expect(view.contentEl.querySelector('.drawio-page-control')).not.toBeNull();
   });
 
+  it('anchors the edit hint to the preview wrapper, not the tab-filling container', () => {
+    Platform.isDesktopApp = true;
+    const view = makeView(fakePlugin());
+    view.setViewData(XML, true);
+    const hint = view.contentEl.querySelector('.drawio-edit-hint');
+    expect(hint?.parentElement?.classList.contains('drawio-preview-wrap')).toBe(true);
+  });
+
+  it('keeps the edit hint after flipping pages (renderPreview empties only .drawio-preview)', () => {
+    Platform.isDesktopApp = true;
+    const view = makeView(fakePlugin());
+    view.setViewData(MULTI_PAGE_XML, true);
+    const nextBtn = view.contentEl.querySelectorAll<HTMLButtonElement>('.drawio-page-control button')[1];
+    expect(nextBtn?.textContent).toBe('›');
+    nextBtn?.click();
+    expect(view.contentEl.querySelector('.drawio-edit-hint')).not.toBeNull();
+  });
+
   it('getViewData returns the last data set (no write path)', () => {
     Platform.isDesktopApp = false;
     const view = makeView(fakePlugin());

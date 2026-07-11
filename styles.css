@@ -60,6 +60,9 @@
 
 /* ---- Read-only file view (.drawio files: always on mobile, opt-in on desktop) ---- */
 .drawio-preview-file-view { position: relative; height: 100%; overflow: auto; padding: 12px; }
+/* Positioning context for the hover "Edit" hint: anchors it over the diagram
+   itself instead of the tab-filling view container. */
+.drawio-preview-file-view .drawio-preview-wrap { position: relative; }
 .drawio-preview-file-view.drawio-clickable { cursor: pointer; }
 .drawio-preview-file-view:hover .drawio-edit-hint,
 .drawio-preview-file-view:focus-within .drawio-edit-hint { opacity: .92; }
