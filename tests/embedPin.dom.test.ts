@@ -104,3 +104,21 @@ describe('embed pin wiring (registry path)', () => {
     expect(el.querySelector('.drawio-pin')).toBeNull();
   });
 });
+
+describe('embed pin wiring (post-processor fallback path)', () => {
+  it('pins through the fallback renderer too', async () => {
+    const { postProcessor, state } = makeHarness('a ![[multi.drawio]] b', { registry: false });
+    const section = document.body.createDiv();
+    const span = section.createSpan({ cls: 'internal-embed' });
+    span.setAttribute('src', 'multi.drawio');
+    postProcessor!(section, { sourcePath: 'note.md' });
+    await tick();
+
+    const [, next] = Array.from(span.querySelectorAll<HTMLButtonElement>('.drawio-page-control button'));
+    next!.click();
+    const pin = span.querySelector<HTMLButtonElement>('.drawio-pin')!;
+    pin.click();
+    await tick();
+    expect(state.text).toBe('a ![[multi.drawio#Page-2]] b');
+  });
+});

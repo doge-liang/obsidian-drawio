@@ -189,7 +189,7 @@ function registerEmbedPostProcessor(plugin: DrawioPlugin) {
           openWithDefaultApp(plugin.app, file.path);
         }
       });
-      void renderEmbedInto(plugin, span, file, subpath);
+      void renderEmbedInto(plugin, span, file, subpath, ctx.sourcePath);
     }
   });
 }
@@ -198,7 +198,8 @@ async function renderEmbedInto(
   plugin: DrawioPlugin,
   span: HTMLElement,
   file: TFile,
-  subpath?: string,
+  subpath: string | undefined,
+  sourcePath: string,
 ) {
   span.empty();
   span.addClass('drawio-embed');
@@ -219,6 +220,13 @@ async function renderEmbedInto(
         initialPage: currentPage,
         onPageChange: (page) => {
           renderPreview(preview, xml, { ...plugin.previewOpts(), page });
+        },
+        pin: {
+          pinnedPage: currentPage,
+          onPin: (page) => {
+            const name = pages[page]?.name;
+            if (name !== undefined) void pinEmbedPage(plugin.app, sourcePath, file, subpath, name);
+          },
         },
       });
     }
