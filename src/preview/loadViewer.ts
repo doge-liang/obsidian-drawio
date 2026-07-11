@@ -28,6 +28,12 @@ export function ensureViewerLoaded(doc: Document = activeDocument): void {
   win.RESOURCE_BASE = win.RESOURCE_BASE ?? '.';
   win.mxBasePath = win.mxBasePath ?? '.';
   win.PROXY_URL = win.PROXY_URL ?? '';
+  // viewer.min.js ends with a self-executing bootstrap that, unless this hook
+  // is defined, runs GraphViewer.processElements(): a DOCUMENT-WIDE scan that
+  // wipes and instantiates every `.mxgraph` element — including mounts it
+  // doesn't own (e.g. a render mid-flight on the deferred path, or another
+  // plugin's). renderPreview drives each mount itself, so opt out of the scan.
+  win.onDrawioViewerLoad = win.onDrawioViewerLoad ?? ((): void => { /* no-op */ });
   // Indirect eval: calling the window's `eval` through a reference (not the bare
   // `eval(...)` form) runs the code in that window's global scope. This is the
   // <script>-free equivalent of appending an inline script tag.

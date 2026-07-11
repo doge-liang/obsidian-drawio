@@ -109,6 +109,21 @@ name; the manifest id inside is `drawio-editor`).
   `createElement("script")` as a blocking error; indirect eval (`win.eval(src)`) has
   identical global-scope semantics (top-level `var GraphViewer` → `window.GraphViewer`)
   without creating a script element. **Don't reintroduce `createElement('script')`.**
+- **Two viewer global-state guards — don't remove either** (both regression-tested
+  against the REAL vendored viewer; the suites skip when `viewer.min.txt` is absent):
+  - `loadViewer.ts` defines a no-op `window.onDrawioViewerLoad` *before* evaling the
+    viewer. Without it, viewer.min.js's tail bootstrap runs
+    `GraphViewer.processElements()`: a document-wide scan that wipes and instantiates
+    every `.mxgraph` element — including mounts it doesn't own.
+    (`tests/loadViewerBootstrap.dom.test.ts`)
+  - `ViewerRenderer.ts` restores the window-global `urlParams.page` after
+    `createViewerForElement` returns. GraphViewer's init writes the instance's page
+    into that global (its internal handshake for picking the `<diagram>` out of an
+    mxfile — see the "Passes current page via urlParams" comment in GraphViewer.js)
+    and never cleans it up, so without the restore the last-rendered page leaks to
+    any later same-window mxfile parse that doesn't set a page first.
+    (`tests/embedPageIsolation.dom.test.ts`, which also guards that flipping one
+    multi-page preview never moves another — page state is strictly per-preview.)
 - **Build-time viewer sanitization** (`esbuild.config.mjs`,
   `sanitizeDrawioViewerPlugin`). drawio's `viewer.min.js` contains one
   external-`<script>` loader (a MathJax-from-CDN helper, unused offline). It is

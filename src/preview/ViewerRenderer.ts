@@ -60,7 +60,20 @@ export function renderPreview(el: HTMLElement, xml: string, opts: RenderOptions)
     xml: ensureMxfile(xml),
   };
   mount.setAttribute('data-mxgraph', JSON.stringify(data));
-  viewer.createViewerForElement(mount);
+  // GraphViewer's init writes `data.page` into the window-global
+  // `urlParams.page` (its internal handshake for selecting the <diagram> out
+  // of an mxfile) and never restores it. Every consumer inside this render is
+  // done with the global once createViewerForElement returns, so put it back —
+  // otherwise the last-rendered page steers any later same-window mxfile parse
+  // that doesn't set a page of its own (other plugins, future code paths).
+  const win = el.ownerDocument.defaultView ?? window;
+  const urlParams = (win as unknown as { urlParams?: Record<string, unknown> }).urlParams;
+  const prevPage = urlParams?.page;
+  try {
+    viewer.createViewerForElement(mount);
+  } finally {
+    if (urlParams) urlParams.page = prevPage;
+  }
 
   let done = false;
   const finalize = (svg: SVGSVGElement): void => {
@@ -88,7 +101,6 @@ export function renderPreview(el: HTMLElement, xml: string, opts: RenderOptions)
   }
 
   // Safety net: if some environment still defers, wait for the SVG to appear.
-  const win = el.ownerDocument.defaultView ?? window;
   const observer = new win.MutationObserver(() => {
     const svg = mount.querySelector('svg');
     if (svg) {
