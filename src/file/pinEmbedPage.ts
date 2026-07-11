@@ -1,7 +1,7 @@
 import { App, Notice, TFile, parseLinktext } from 'obsidian';
 import { rewriteEmbedSubpath, type EmbedSpan } from '../model/embedLink';
 
-export type PinOutcome = 'pinned' | 'no-match' | 'ambiguous' | 'error';
+export type PinOutcome = 'pinned' | 'no-match' | 'ambiguous' | 'unsupported-link' | 'error';
 
 /**
  * Persist an embed's currently shown page into the note: rewrite the one
@@ -69,7 +69,9 @@ export async function pinEmbedPage(
   } else if (outcome === 'no-match') {
     new Notice('Drawio: couldn\'t find this embed\'s link in the note — page not pinned.');
   } else if (outcome === 'ambiguous') {
-    new Notice('Drawio: several identical links to this file — edit the subpath in the note manually.');
+    new Notice('Drawio: several links to this file with the same page — edit the subpath in the note manually.');
+  } else if (outcome === 'unsupported-link') {
+    new Notice('Drawio: this embed uses a markdown-style link — edit the page in the note manually.');
   }
   return outcome;
 }

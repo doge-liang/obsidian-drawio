@@ -13,11 +13,20 @@ function makeApp(notePath: string, noteText: string, target: TFile) {
   const noteFile = makeFile(notePath);
   const embeds = () => {
     const out: { link: string; original: string; position: { start: { offset: number }; end: { offset: number } } }[] = [];
-    const re = /!\[\[([^\]]+)\]\]/g;
+    const wikiRe = /!\[\[([^\]]+)\]\]/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(state.text))) {
+    while ((m = wikiRe.exec(state.text))) {
       out.push({
         link: m[1]!.split('|')[0]!,
+        original: m[0],
+        position: { start: { offset: m.index }, end: { offset: m.index + m[0].length } },
+      });
+    }
+    // Also report markdown-style embeds, like Obsidian's real metadata cache does.
+    const mdRe = /!\[[^\]]*\]\(([^)]+)\)/g;
+    while ((m = mdRe.exec(state.text))) {
+      out.push({
+        link: m[1]!,
         original: m[0],
         position: { start: { offset: m.index }, end: { offset: m.index + m[0].length } },
       });
@@ -86,6 +95,14 @@ describe('pinEmbedPage', () => {
     const { app } = makeApp('note.md', '![[multi.drawio]]', target);
     const outcome = await pinEmbedPage(app, 'other.md', target, undefined, 'Page-2');
     expect(outcome).toBe('error');
+  });
+
+  it('reports unsupported-link and leaves the note untouched for a markdown-style embed', async () => {
+    const text = '![diagram](multi.drawio)';
+    const { app, state } = makeApp('note.md', text, target);
+    const outcome = await pinEmbedPage(app, 'note.md', target, undefined, 'Page-2');
+    expect(outcome).toBe('unsupported-link');
+    expect(state.text).toBe(text);
   });
 
   it('reports error when the vault write fails', async () => {

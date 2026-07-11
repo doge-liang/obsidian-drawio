@@ -14,7 +14,8 @@ export interface EmbedSpan {
 export type PinRewrite =
   | { outcome: 'ok'; text: string }
   | { outcome: 'no-match' }
-  | { outcome: 'ambiguous' };
+  | { outcome: 'ambiguous' }
+  | { outcome: 'unsupported-link' };
 
 /**
  * Rewrite exactly one embed link's subpath to `newPageName`.
@@ -24,6 +25,15 @@ export type PinRewrite =
  * page, which exists only in memory). Zero matches → no-match; more than one
  * (identical duplicate links) → ambiguous; in both cases the text is left
  * untouched — never guess which link the user meant.
+ *
+ * Wikilink-only policy: `cache.embeds` also reports markdown-style embeds
+ * (`![alt](file.drawio)`), but only `![[...]]` wikilink syntax can be
+ * rewritten safely — markdown links have no subpath slot without either
+ * corrupting their syntax or discarding the alt text. A markdown-style
+ * single match is reported as `unsupported-link` and left untouched; it
+ * still counts as a candidate for the ambiguity check above, so a wikilink
+ * and a markdown link to the same file/subpath still resolve to `ambiguous`
+ * rather than silently picking the wikilink.
  *
  * Stale-cache safety: a candidate only matches if the document really
  * contains its `original` text at its recorded offsets. Metadata-cache
@@ -43,6 +53,9 @@ export function rewriteEmbedSubpath(
   if (matches.length === 0) return { outcome: 'no-match' };
   if (matches.length > 1) return { outcome: 'ambiguous' };
   const m = matches[0]!;
+  if (!(m.original.startsWith('![[') && m.original.endsWith(']]'))) {
+    return { outcome: 'unsupported-link' };
+  }
 
   // `original` is `![[` + target(#subpath)? (|alias)? + `]]` — keep the alias
   // part verbatim, replace the target with path#newPageName.

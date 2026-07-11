@@ -51,5 +51,6 @@ Needs a note embedding a multi-page diagram twice: once bare
       the "several identical links" Notice and leaves the note untouched.
 - [ ] Pinning in Live Preview and in Reading view both work; the OTHER
       embed of the same file (different subpath) never changes.
+- [ ] A markdown-style embed (`![alt](multi.drawio)`) shows the "markdown-style link" Notice on pin and the note text is untouched.
 - [ ] Clicking the pin never also triggers the embed click action
       (editor/default app).

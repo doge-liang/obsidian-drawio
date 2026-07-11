@@ -3,11 +3,10 @@ import { renderPreview } from '../preview/ViewerRenderer';
 import { renderPageControl } from '../preview/pageControl';
 import { addEditHint } from '../preview/editHint';
 import { resolveClickAction, openWithDefaultApp } from '../preview/clickAction';
-import { getDiagramPages, resolvePageFromSubpath, ensureMxfile } from '../model/xmlUtils';
+import { getDiagramPages, resolvePageFromSubpath, ensureMxfile, type DiagramPage } from '../model/xmlUtils';
 import { FileSource } from './FileSource';
 import { DRAWIO_FILE_EXT } from '../constants';
 import { pinEmbedPage } from './pinEmbedPage';
-import type { DiagramPage } from '../model/xmlUtils';
 import type DrawioPlugin from '../main';
 
 /**
@@ -112,7 +111,7 @@ class DrawioFileEmbed extends MarkdownRenderChild {
             this.currentPage = page;
             renderPreview(preview, xml, { ...this.plugin.previewOpts(), page });
           },
-          pin: this.sourcePath === undefined ? undefined : {
+          pin: !this.sourcePath ? undefined : {
             pinnedPage: resolvePageFromSubpath(pages, this.subpath),
             onPin: (page) => { void this.pin(pages, page); },
           },
@@ -153,7 +152,10 @@ class DrawioFileEmbed extends MarkdownRenderChild {
     const name = pages[page]?.name;
     if (name === undefined || this.sourcePath === undefined) return;
     const outcome = await pinEmbedPage(this.plugin.app, this.sourcePath, this.file, this.subpath, name);
-    if (outcome === 'pinned') this.subpath = name;
+    if (outcome === 'pinned') {
+      this.subpath = name;
+      await this.render();
+    }
   }
 }
 
@@ -221,7 +223,7 @@ async function renderEmbedInto(
         onPageChange: (page) => {
           renderPreview(preview, xml, { ...plugin.previewOpts(), page });
         },
-        pin: {
+        pin: !sourcePath ? undefined : {
           pinnedPage: currentPage,
           onPin: (page) => {
             const name = pages[page]?.name;

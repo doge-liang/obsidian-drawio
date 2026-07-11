@@ -82,10 +82,20 @@ Modifying the note makes Obsidian rebuild that embed (new creator call with
 the new subpath), so the displayed page, the control's state, and the note
 text converge without any manual syncing. Flipping continues to write nothing.
 
+Pinning is wikilink-only: `cache.embeds` also reports markdown-style embeds
+(`![alt](file.drawio)`), but rewriting one would either corrupt its syntax or
+silently discard the alt text, so a markdown-style candidate is never
+rewritten — it gets an explanatory `Notice` instead, and the note is never
+touched. A markdown-style link still counts as a candidate for the ambiguity
+check, so a wikilink and a markdown link to the same file/subpath resolve to
+`ambiguous`, not a silent pick of the wikilink.
+
 ## Error handling
 
 - Missing `linktext`/`sourcePath` on `ctx` → no pin button (silent degrade).
 - No/ambiguous candidates in the metadata cache → `Notice`, no write.
+- Single matching candidate that isn't a `![[...]]` wikilink (e.g. a
+  markdown-style embed) → `Notice` explaining the limitation, no write.
 - `vault.process` failure → `Notice` with the error, no partial state to
   clean up (the rewrite is a single atomic operation).
 - Single-page files: no page control at all today; nothing changes.

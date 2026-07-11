@@ -73,4 +73,33 @@ describe('rewriteEmbedSubpath', () => {
     const r = rewriteEmbedSubpath(doc, [stale], undefined, 'Page-3');
     expect(r).toEqual({ outcome: 'no-match' });
   });
+
+  /** Build the EmbedSpan for a markdown-style embed occurrence in `doc`. */
+  function markdownSpanOf(doc: string, original: string, path: string, subpath: string | undefined): EmbedSpan {
+    const start = doc.indexOf(original);
+    if (start === -1) throw new Error(`"${original}" not in doc`);
+    return { original, start, end: start + original.length, path, subpath };
+  }
+
+  it('reports unsupported-link for a markdown-style embed and leaves the note untouched', () => {
+    const doc = 'before ![diagram](multi.drawio) after';
+    const span = markdownSpanOf(doc, '![diagram](multi.drawio)', 'multi.drawio', undefined);
+    const r = rewriteEmbedSubpath(doc, [span], undefined, 'Page-3');
+    expect(r).toEqual({ outcome: 'unsupported-link' });
+  });
+
+  it('reports unsupported-link for a markdown-style embed with a size suffix', () => {
+    const doc = 'before ![alt|100](multi.drawio) after';
+    const span = markdownSpanOf(doc, '![alt|100](multi.drawio)', 'multi.drawio', undefined);
+    const r = rewriteEmbedSubpath(doc, [span], undefined, 'Page-3');
+    expect(r).toEqual({ outcome: 'unsupported-link' });
+  });
+
+  it('never guesses: a wikilink and a markdown link to the same file/subpath are ambiguous', () => {
+    const doc = '![[multi.drawio]] and ![diagram](multi.drawio)';
+    const wikilink = spanOf(doc, '![[multi.drawio]]');
+    const markdown = markdownSpanOf(doc, '![diagram](multi.drawio)', 'multi.drawio', undefined);
+    const r = rewriteEmbedSubpath(doc, [wikilink, markdown], undefined, 'Page-3');
+    expect(r).toEqual({ outcome: 'ambiguous' });
+  });
 });
