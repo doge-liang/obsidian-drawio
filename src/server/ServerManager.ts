@@ -1,4 +1,4 @@
-import { createServer, Server } from 'node:http';
+import { createServer, IncomingMessage, Server } from 'node:http';
 import { createReadStream, statSync, realpathSync } from 'node:fs';
 import { join, normalize, extname, sep } from 'node:path';
 import { findFreePort } from './portDetector';
@@ -49,7 +49,7 @@ export class ServerManager {
 
   private async start(): Promise<number> {
     this.port = await findFreePort(this.opts.min, this.opts.max);
-    this.server = createServer((req, res) => this.handle(req.url ?? '/', res));
+    this.server = createServer((req, res) => this.handle(req, res));
     await new Promise<void>((resolve, reject) => {
       this.server!.once('error', reject);
       this.server!.listen(this.port, '127.0.0.1', resolve);
@@ -77,8 +77,8 @@ export class ServerManager {
     if (this.server) { this.server.close(); this.server = null; this.port = 0; }
   }
 
-  private handle(url: string, res: import('node:http').ServerResponse): void {
-    const path0 = url.split('?')[0] ?? '/';
+  private handle(req: IncomingMessage, res: import('node:http').ServerResponse): void {
+    const path0 = (req.url ?? '/').split('?')[0] ?? '/';
     let path: string;
     try {
       path = decodeURIComponent(path0);
@@ -102,15 +102,49 @@ export class ServerManager {
     if (!full.startsWith(this.realRoot + sep) && full !== this.realRoot) {
       res.writeHead(403); res.end('Forbidden'); return;
     }
-    if (!statSync(full).isFile()) {
+    const stats = statSync(full);
+    if (!stats.isFile()) {
       res.writeHead(404); res.end('Not found'); return;
     }
+
+    // The webapp is a pinned, immutable artifact (scripts/fetch-drawio.mjs), so
+    // responses are safely cacheable. Without these headers Chromium re-fetches
+    // the whole webapp on every editor mount AND never engages V8's code cache
+    // for app.min.js — re-parsing it dominates the editor's startup delay.
+    // Validators (ETag/Last-Modified) keep post-expiry revalidation a cheap
+    // loopback 304, which preserves the cached entry (and its code cache); a
+    // fetch-drawio version bump changes mtime, so the ETag busts stale copies.
+    const etag = `"${stats.size}-${stats.mtimeMs}"`;
+    const cacheHeaders = {
+      'Cache-Control': 'public, max-age=3600',
+      'ETag': etag,
+      'Last-Modified': stats.mtime.toUTCString(),
+    };
+    if (this.isNotModified(req, etag, stats.mtimeMs)) {
+      res.writeHead(304, cacheHeaders); res.end(); return;
+    }
+
     const stream = createReadStream(full);
     stream.on('error', () => {
       if (!res.headersSent) res.writeHead(500);
       res.end('Internal Server Error');
     });
-    res.writeHead(200, { 'Content-Type': MIME[extname(full)] ?? 'application/octet-stream' });
+    res.writeHead(200, {
+      'Content-Type': MIME[extname(full)] ?? 'application/octet-stream',
+      'Content-Length': String(stats.size),
+      ...cacheHeaders,
+    });
     stream.pipe(res);
+  }
+
+  /** Conditional-request check: If-None-Match wins over If-Modified-Since (RFC 9110). */
+  private isNotModified(req: IncomingMessage, etag: string, mtimeMs: number): boolean {
+    const inm = req.headers['if-none-match'];
+    if (inm) return inm === '*' || inm.split(',').some((t) => t.trim() === etag);
+    const ims = req.headers['if-modified-since'];
+    if (!ims) return false;
+    const since = Date.parse(ims);
+    // HTTP dates have 1s granularity; truncate mtime the same way for the compare.
+    return !Number.isNaN(since) && Math.floor(mtimeMs / 1000) * 1000 <= since;
   }
 }

@@ -99,4 +99,66 @@ describe('ServerManager', () => {
     const res = await fetch(`http://127.0.0.1:${port}/link.txt`);
     expect(res.status).toBe(403);
   });
+
+  // The cache tests below each get their own port range: fetch() (undici)
+  // pools keep-alive connections per origin, and reusing a pooled socket
+  // against a *restarted* server on the same port flakes with
+  // "other side closed".
+
+  it('serves cacheable responses with validators', async () => {
+    mgr = new ServerManager(fakeWebapp(), { min: 41210, max: 41219, idleMs: 60000 });
+    const port = await mgr.ensureStarted();
+    const res = await fetch(`http://127.0.0.1:${port}/index.html`);
+    expect(res.headers.get('cache-control')).toBe('public, max-age=3600');
+    expect(res.headers.get('etag')).toMatch(/^".+"$/);
+    expect(res.headers.get('last-modified')).toBeTruthy();
+    expect(res.headers.get('content-length')).toBe(String((await res.arrayBuffer()).byteLength));
+  });
+
+  it('answers a matching If-None-Match with 304 and no body', async () => {
+    mgr = new ServerManager(fakeWebapp(), { min: 41220, max: 41229, idleMs: 60000 });
+    const port = await mgr.ensureStarted();
+    const first = await fetch(`http://127.0.0.1:${port}/index.html`);
+    const etag = first.headers.get('etag')!;
+    const second = await fetch(`http://127.0.0.1:${port}/index.html`, {
+      headers: { 'If-None-Match': etag },
+      cache: 'no-store',
+    });
+    expect(second.status).toBe(304);
+    expect(second.headers.get('etag')).toBe(etag);
+    expect(await second.text()).toBe('');
+  });
+
+  it('answers a fresh If-Modified-Since with 304 and a stale one with 200', async () => {
+    mgr = new ServerManager(fakeWebapp(), { min: 41230, max: 41239, idleMs: 60000 });
+    const port = await mgr.ensureStarted();
+    const first = await fetch(`http://127.0.0.1:${port}/index.html`);
+    const lastModified = first.headers.get('last-modified')!;
+    const fresh = await fetch(`http://127.0.0.1:${port}/index.html`, {
+      headers: { 'If-Modified-Since': lastModified },
+      cache: 'no-store',
+    });
+    expect(fresh.status).toBe(304);
+    const stale = await fetch(`http://127.0.0.1:${port}/index.html`, {
+      headers: { 'If-Modified-Since': new Date(Date.parse(lastModified) - 60_000).toUTCString() },
+      cache: 'no-store',
+    });
+    expect(stale.status).toBe(200);
+  });
+
+  it('serves 200 with fresh validators when the file changes (version bump)', async () => {
+    const root = fakeWebapp();
+    mgr = new ServerManager(root, { min: 41240, max: 41249, idleMs: 60000 });
+    const port = await mgr.ensureStarted();
+    const first = await fetch(`http://127.0.0.1:${port}/index.html`);
+    const etag = first.headers.get('etag')!;
+    writeFileSync(join(root, 'index.html'), '<html>drawio v2 — longer body</html>');
+    const second = await fetch(`http://127.0.0.1:${port}/index.html`, {
+      headers: { 'If-None-Match': etag },
+      cache: 'no-store',
+    });
+    expect(second.status).toBe(200);
+    expect(second.headers.get('etag')).not.toBe(etag);
+    expect(await second.text()).toContain('v2');
+  });
 });
