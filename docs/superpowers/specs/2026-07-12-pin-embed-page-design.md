@@ -42,12 +42,14 @@ blocks and the file view pass nothing and look unchanged):
 
 ## Locating the link to rewrite
 
-The embed creator's `ctx` carries `linktext` and `sourcePath` in addition to
-the `containerEl` we already use (verified against Obsidian 1.12.7 internals:
-the embed loader passes `{app, containerEl, linktext, sourcePath, …}`). These
-are internal-but-stable fields, handled in the same feature-detect style as
-`embedRegistry` itself: **if either is missing, the pin button simply isn't
-rendered** — the feature degrades to today's behavior instead of breaking.
+The embed creator's `ctx` carries `sourcePath` (the embedding note's path) in
+addition to the `containerEl` we already use (verified against Obsidian
+1.12.7 internals: the embed loader passes `{app, containerEl, linktext,
+sourcePath, …}`; only `sourcePath` is needed — the links themselves come from
+the metadata cache below). It is an internal-but-stable field, handled in the
+same feature-detect style as `embedRegistry` itself: **if it is missing, the
+pin button simply isn't rendered** — the feature degrades to today's behavior
+instead of breaking.
 
 The link is located by *position*, never by string search:
 `metadataCache.getCache(sourcePath).embeds` lists every embed in the note with
