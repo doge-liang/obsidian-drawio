@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { Platform } from 'obsidian';
 import { DrawioSettingTab } from '../src/settingsTab';
 import { DEFAULT_SETTINGS } from '../src/settings';
+import { DRAWIO_VERSION } from '../src/constants';
 import { InstallStatus } from '../src/model/installStatus';
 import type DrawioPlugin from '../src/main';
 
@@ -90,6 +91,40 @@ describe('offline editor status row', () => {
     await vi.waitFor(() => {
       expect(row.querySelector('button')?.textContent).toBe('Reinstall');
       expect(row.querySelector('.setting-item-description')?.textContent).toContain('v30.0.4');
+    });
+  });
+
+  it('offers Update (with CTA) when the installed version differs from the pinned one', async () => {
+    Platform.isDesktopApp = true;
+    const tab = new DrawioSettingTab({} as never, fakePlugin({
+      isWebappInstalled: async () => true,
+      installedWebappVersion: async () => 'v29.0.0',
+    }));
+    tab.display();
+    const row = statusRow(tab.containerEl)!;
+    await vi.waitFor(() => {
+      const button = row.querySelector<HTMLButtonElement>('button')!;
+      expect(button.textContent).toBe('Update');
+      expect(button.classList.contains('mod-cta')).toBe(true);
+      const desc = row.querySelector('.setting-item-description')?.textContent ?? '';
+      expect(desc).toContain('v29.0.0');
+      expect(desc).toContain(DRAWIO_VERSION);
+    });
+  });
+
+  it('keeps Reinstall (no update prompt) when the installed version is unknown', async () => {
+    Platform.isDesktopApp = true;
+    const tab = new DrawioSettingTab({} as never, fakePlugin({
+      isWebappInstalled: async () => true,
+      installedWebappVersion: async () => null,
+    }));
+    tab.display();
+    const row = statusRow(tab.containerEl)!;
+    await vi.waitFor(() => {
+      const button = row.querySelector<HTMLButtonElement>('button')!;
+      expect(button.textContent).toBe('Reinstall');
+      expect(button.classList.contains('mod-cta')).toBe(false);
+      expect(row.querySelector('.setting-item-description')?.textContent).toBe('Installed.');
     });
   });
 

@@ -172,7 +172,10 @@ name; the manifest id inside is `drawio-editor`).
   staging dir is renamed into `webapp/`, and on failure `webapp.old/` is
   renamed straight back so an install never leaves the vault with no webapp at
   all; a successful install best-effort-removes the `webapp.old/` leftover;
-  the caller stops the local server first for Windows file locks). `fflate` is
+  the caller stops the local server first for Windows file locks; when the
+  installed webapp's `DRAWIO_VERSION` file differs from the pinned constant,
+  the row shows an **Update** button — same pipeline, always installs the
+  pin, keeping the webapp in lockstep with the bundled viewer). `fflate` is
   a devDependency inlined by esbuild. The pinned version lives in
   `src/constants.ts` (`DRAWIO_VERSION`) and a test asserts it matches
   `scripts/fetch-drawio.mjs`. A load-time notice

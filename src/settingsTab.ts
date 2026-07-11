@@ -1,5 +1,6 @@
 import { App, ButtonComponent, Platform, PluginSettingTab, Setting } from 'obsidian';
 import type DrawioPlugin from './main';
+import { DRAWIO_VERSION } from './constants';
 import { formatInstallProgress, type WebappInstallState } from './model/installStatus';
 import type { DrawioMode, NewDiagramLocation, PreviewAlignment, PreviewClickAction } from './settings';
 
@@ -186,8 +187,19 @@ export class DrawioSettingTab extends PluginSettingTab {
       if (status.state.status !== 'idle') return; // an install started meanwhile
       if (installed) {
         const version = await this.plugin.installedWebappVersion();
-        setting.setDesc(version ? `Installed (drawio ${version}).` : 'Installed.');
-        button.setButtonText('Reinstall').setDisabled(false);
+        if (version && version !== DRAWIO_VERSION) {
+          // A plugin update bumped the pinned drawio version; previews already
+          // use the new bundled viewer, so nudge the webapp to match. Updating
+          // is the same pipeline as installing (always installs the pin).
+          setting.setDesc(
+            `Installed (drawio ${version}). Update available: this plugin version ` +
+            `bundles drawio ${DRAWIO_VERSION}.`,
+          );
+          button.setButtonText('Update').setCta().setDisabled(false);
+        } else {
+          setting.setDesc(version ? `Installed (drawio ${version}).` : 'Installed.');
+          button.setButtonText('Reinstall').setDisabled(false);
+        }
       } else {
         setting.setDesc(
           'Not installed. Installing downloads ~53 MB from GitHub (one time, needs network); ' +
