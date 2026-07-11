@@ -17,7 +17,7 @@ function fakePlugin(openEditor: DrawioPlugin['openEditor'], previewClickAction: 
   const raw = {
     app: {},
     settings: { previewClickAction },
-    previewOpts: () => ({ dark: false, align: 'center' as const }),
+    previewOpts: () => ({ dark: false }),
     openEditor,
     registerMarkdownCodeBlockProcessor: (_lang: string, cb: Processor) => { processor = cb; },
   };

@@ -5,9 +5,11 @@
 /* The extracted SVG carries explicit width/height/viewBox (see ViewerRenderer),
    so it renders at its natural diagram size and scales down to fit; centre it. */
 .drawio-preview svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
-/* "Preview alignment: Left" setting. */
-.drawio-preview.drawio-align-left { text-align: left; }
-.drawio-preview.drawio-align-left svg { margin: 0; }
+/* "Preview alignment: Left" setting. Body-level (toggled by the plugin on
+   every window) so a settings change realigns already-rendered previews
+   without waiting for a re-render. */
+body.drawio-align-left .drawio-preview { text-align: left; }
+body.drawio-align-left .drawio-preview svg { margin: 0; }
 
 /* Centered, hover-revealed "Edit" hint. Non-interactive (clicks fall through to the
    preview) and centered rather than in a corner, so it never collides with other
