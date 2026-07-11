@@ -27,7 +27,7 @@ function fakePlugin(openEditor: DrawioPlugin['openEditor'], previewClickAction: 
       openWithDefaultApp,
     },
     settings: { previewClickAction },
-    previewOpts: () => ({ dark: false, align: 'center' as const }),
+    previewOpts: () => ({ dark: false }),
     openEditor,
     register: vi.fn(),
   };
