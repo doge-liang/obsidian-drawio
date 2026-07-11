@@ -34,3 +34,23 @@ Run in a desktop test vault after `npm run build` and copying the plugin (or sym
 ## Cleanup
 - [ ] Disabling the plugin with a `.drawio` file open does not leave a broken "No view of type" pane.
 - [ ] No errors in the console on enable/disable cycles.
+
+## Pin embed page (0.5.x)
+
+Needs a note embedding a multi-page diagram twice: once bare
+(`![[multi.drawio]]`), once with a subpath (`![[multi.drawio#Page-2]]`).
+
+- [ ] Pin button appears on embed page controls only (code blocks and the
+      read-only file view show none), enabled only after flipping away from
+      the linked page. Works on mobile as well as desktop.
+- [ ] Flipping the bare embed to page 2 and pinning rewrites that link to
+      `![[multi.drawio#Page-2]]` (alias preserved if present), shows a
+      confirming Notice, and the embed re-renders on the pinned page.
+      Reopening the note lands on the pinned page.
+- [ ] With TWO identical links to the same file in one note, pinning shows
+      the "several identical links" Notice and leaves the note untouched.
+- [ ] Pinning in Live Preview and in Reading view both work; the OTHER
+      embed of the same file (different subpath) never changes.
+- [ ] A markdown-style embed (`![alt](multi.drawio)`) shows the "markdown-style link" Notice on pin and the note text is untouched.
+- [ ] Clicking the pin never also triggers the embed click action
+      (editor/default app).

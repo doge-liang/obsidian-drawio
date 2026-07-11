@@ -3,9 +3,10 @@ import { renderPreview } from '../preview/ViewerRenderer';
 import { renderPageControl } from '../preview/pageControl';
 import { addEditHint } from '../preview/editHint';
 import { resolveClickAction, openWithDefaultApp } from '../preview/clickAction';
-import { getDiagramPages, resolvePageFromSubpath, ensureMxfile } from '../model/xmlUtils';
+import { getDiagramPages, resolvePageFromSubpath, ensureMxfile, type DiagramPage } from '../model/xmlUtils';
 import { FileSource } from './FileSource';
 import { DRAWIO_FILE_EXT } from '../constants';
+import { pinEmbedPage } from './pinEmbedPage';
 import type DrawioPlugin from '../main';
 
 /**
@@ -22,7 +23,7 @@ export function registerDrawioEmbeds(plugin: DrawioPlugin) {
   if (registry && typeof registry.registerExtension === 'function') {
     try {
       registry.registerExtension(DRAWIO_FILE_EXT, (ctx, file, subpath) =>
-        new DrawioFileEmbed(plugin, file, ctx.containerEl, subpath));
+        new DrawioFileEmbed(plugin, file, ctx.containerEl, subpath, ctx.sourcePath));
       plugin.register(() => {
         try { registry.unregisterExtension?.(DRAWIO_FILE_EXT); } catch { /* ignore */ }
       });
@@ -35,7 +36,7 @@ export function registerDrawioEmbeds(plugin: DrawioPlugin) {
 }
 
 interface EmbedRegistry {
-  registerExtension(ext: string, creator: (ctx: { containerEl: HTMLElement }, file: TFile, subpath?: string) => unknown): void;
+  registerExtension(ext: string, creator: (ctx: { containerEl: HTMLElement; sourcePath?: string }, file: TFile, subpath?: string) => unknown): void;
   unregisterExtension?(ext: string): void;
 }
 
@@ -49,6 +50,10 @@ class DrawioFileEmbed extends MarkdownRenderChild {
     private file: TFile,
     containerEl: HTMLElement,
     private subpath?: string,
+    // Note that owns this embed. An internal-but-stable ctx field — when a
+    // future Obsidian stops supplying it, the pin button silently disappears
+    // (feature-detect, same stance as embedRegistry itself).
+    private sourcePath?: string,
   ) {
     super(containerEl);
   }
@@ -106,6 +111,10 @@ class DrawioFileEmbed extends MarkdownRenderChild {
             this.currentPage = page;
             renderPreview(preview, xml, { ...this.plugin.previewOpts(), page });
           },
+          pin: !this.sourcePath ? undefined : {
+            pinnedPage: resolvePageFromSubpath(pages, this.subpath),
+            onPin: (page) => { void this.pin(pages, page); },
+          },
         });
       }
 
@@ -134,6 +143,18 @@ class DrawioFileEmbed extends MarkdownRenderChild {
           openWithDefaultApp(this.plugin.app, this.file.path);
         }
       });
+    }
+  }
+
+  /** Persist the shown page into the note's link; on success adopt the new
+   *  subpath locally so a modify-triggered re-render agrees with the note. */
+  private async pin(pages: DiagramPage[], page: number): Promise<void> {
+    const name = pages[page]?.name;
+    if (name === undefined || this.sourcePath === undefined) return;
+    const outcome = await pinEmbedPage(this.plugin.app, this.sourcePath, this.file, this.subpath, name);
+    if (outcome === 'pinned') {
+      this.subpath = name;
+      await this.render();
     }
   }
 }
@@ -170,7 +191,7 @@ function registerEmbedPostProcessor(plugin: DrawioPlugin) {
           openWithDefaultApp(plugin.app, file.path);
         }
       });
-      void renderEmbedInto(plugin, span, file, subpath);
+      void renderEmbedInto(plugin, span, file, subpath, ctx.sourcePath);
     }
   });
 }
@@ -179,7 +200,8 @@ async function renderEmbedInto(
   plugin: DrawioPlugin,
   span: HTMLElement,
   file: TFile,
-  subpath?: string,
+  subpath: string | undefined,
+  sourcePath: string,
 ) {
   span.empty();
   span.addClass('drawio-embed');
@@ -200,6 +222,13 @@ async function renderEmbedInto(
         initialPage: currentPage,
         onPageChange: (page) => {
           renderPreview(preview, xml, { ...plugin.previewOpts(), page });
+        },
+        pin: !sourcePath ? undefined : {
+          pinnedPage: currentPage,
+          onPin: (page) => {
+            const name = pages[page]?.name;
+            if (name !== undefined) void pinEmbedPage(plugin.app, sourcePath, file, subpath, name);
+          },
         },
       });
     }

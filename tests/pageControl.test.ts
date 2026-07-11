@@ -74,4 +74,48 @@ describe('renderPageControl', () => {
     (nextBtn as HTMLButtonElement).click();
     expect(wrapperClick).not.toHaveBeenCalled();
   });
+
+  it('renders no pin button without pin support', () => {
+    const container = document.createElement('div');
+    renderPageControl(container, { pages, initialPage: 0, onPageChange: () => {} });
+    expect(container.querySelector('.drawio-pin')).toBeNull();
+  });
+
+  it('disables the pin button while the shown page is the pinned page', () => {
+    const container = document.createElement('div');
+    renderPageControl(container, {
+      pages, initialPage: 1, onPageChange: () => {},
+      pin: { pinnedPage: 1, onPin: () => {} },
+    });
+    const pin = container.querySelector<HTMLButtonElement>('.drawio-pin')!;
+    expect(pin.disabled).toBe(true);
+  });
+
+  it('enables the pin button after flipping away and pins the shown page', () => {
+    const container = document.createElement('div');
+    const onPin = vi.fn();
+    renderPageControl(container, {
+      pages, initialPage: 0, onPageChange: () => {},
+      pin: { pinnedPage: 0, onPin },
+    });
+    const [, nextBtn] = Array.from(container.querySelectorAll('button'));
+    (nextBtn as HTMLButtonElement).click();
+    const pin = container.querySelector<HTMLButtonElement>('.drawio-pin')!;
+    expect(pin.disabled).toBe(false);
+    pin.click();
+    expect(onPin).toHaveBeenCalledWith(1);
+  });
+
+  it('stops pin-click propagation to wrapper click handlers', () => {
+    const wrapper = document.createElement('div');
+    const container = wrapper.createDiv();
+    const wrapperClick = vi.fn();
+    wrapper.addEventListener('click', wrapperClick);
+    renderPageControl(container, {
+      pages, initialPage: 1, onPageChange: () => {},
+      pin: { pinnedPage: 0, onPin: () => {} },
+    });
+    container.querySelector<HTMLButtonElement>('.drawio-pin')!.click();
+    expect(wrapperClick).not.toHaveBeenCalled();
+  });
 });

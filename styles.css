@@ -50,6 +50,8 @@ body.drawio-align-left .drawio-preview svg { margin: 0; }
 }
 .drawio-page-control button:disabled { opacity: .35; cursor: default; }
 .drawio-page-control button:not(:disabled):hover { color: var(--text-normal); }
+.drawio-page-control .drawio-pin { display: inline-flex; align-items: center; }
+.drawio-page-control .drawio-pin svg { width: 14px; height: 14px; }
 
 /* ---- Modal editor (code blocks & embeds) ---- */
 .drawio-modal { width: 90vw; height: 90vh; max-width: none; }

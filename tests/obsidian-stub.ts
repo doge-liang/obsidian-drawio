@@ -104,3 +104,11 @@ export class MarkdownRenderChild {
   onload(): void {}
   onunload(): void {}
 }
+
+/** Split "path#subpath" — subpath keeps its leading '#', '' when absent. */
+export function parseLinktext(linktext: string): { path: string; subpath: string } {
+  const i = linktext.indexOf('#');
+  return i === -1
+    ? { path: linktext, subpath: '' }
+    : { path: linktext.slice(0, i), subpath: linktext.slice(i) };
+}

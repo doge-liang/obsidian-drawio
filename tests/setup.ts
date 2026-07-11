@@ -45,3 +45,6 @@ proto.addClass = function (this: HTMLElement, ...cls: string[]) {
 proto.toggleClass = function (this: HTMLElement, cls: string | string[], value: boolean) {
   for (const c of Array.isArray(cls) ? cls : [cls]) this.classList.toggle(c, value);
 };
+proto.removeClasses = function (this: HTMLElement, cls: string[]) {
+  this.classList.remove(...cls);
+};
