@@ -20,6 +20,7 @@
   "devDependencies": {
     "@types/node": "^22.15.17",
     "esbuild": "0.25.5",
+    "fflate": "^0.8.3",
     "jsdom": "^25.0.1",
     "obsidian": "latest",
     "typescript": "^5.8.3",

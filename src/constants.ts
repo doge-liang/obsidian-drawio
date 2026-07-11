@@ -5,6 +5,16 @@ export const DRAWIO_FILE_EXT = 'drawio';
 /** Hosted drawio embed, used when the editor source is "Online" (the default). */
 export const ONLINE_DRAWIO_URL = 'https://embed.diagrams.net/';
 
+/** Pinned drawio version — MUST match scripts/fetch-drawio.mjs (guarded by
+ * tests/drawioVersionSync.test.ts) so the runtime-installed webapp matches the
+ * bundled viewer.min.txt. */
+export const DRAWIO_VERSION = 'v30.0.4';
+
+/** The pinned drawio webapp archive (a ZIP), downloaded by the settings-tab
+ * one-click installer. */
+export const DRAWIO_WAR_URL =
+  `https://github.com/jgraph/drawio/releases/download/${DRAWIO_VERSION}/draw.war`;
+
 /** Default empty mxfile diagram. */
 export const EMPTY_DIAGRAM =
   '<mxfile><diagram id="0" name="Page-1"><mxGraphModel dx="800" dy="600" grid="1" ' +
