@@ -8,6 +8,29 @@ The release workflow publishes the tagged version's section below as the GitHub
 release notes, so a version's section must be complete before its tag is pushed
 (see the Release process section of CLAUDE.md).
 
+## 0.5.1 - 2026-07-12
+
+### Added
+
+- **Offline install bundle**: every release now ships
+  `drawio-editor-<version>-offline.zip` — the complete plugin folder with the
+  offline editor already inside, for vaults on machines without network
+  access. Download it on a connected machine and, with Obsidian closed,
+  extract it into `<vault>/.obsidian/plugins/` (see the README's
+  [Offline editor](README.md#offline-editor-optional) section).
+
+### Fixed
+
+- After an offline-editor **Update** or **Reinstall**, reopening the editor
+  could keep loading the previous drawio version from the browser cache for
+  up to an hour. The editor now revalidates against the local server on every
+  load — unchanged files still answer instantly from cache.
+- An install whose download finished while the Obsidian window was minimized
+  stalled at "Extracting…" until the window became visible again.
+- A download whose connection went dead mid-transfer left the settings row
+  stuck at "Installing…" until the plugin was reloaded; it now fails after
+  30 seconds without data and offers **Retry**.
+
 ## 0.5.0 - 2026-07-12
 
 ### Changed — action may be required
