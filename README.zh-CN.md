@@ -83,6 +83,8 @@
 
 商店安装不包含离线 drawio webapp（约 145 MB，超出商店限制）。若要安装：打开 **设置 → Drawio**，选择 **Editor source → Offline (bundled webapp)**，然后点击 **Install** —— 一次性从 GitHub 下载约 53 MB；此后编辑完全离线。当某次插件更新提升了内置的 drawio 版本后，同一设置行会显示 **Update**，直到已安装的 webapp 与之重新一致。
 
+**库所在的机器没有网络？** 每个 release 还附带 `drawio-editor-<version>-offline.zip` —— 完整的插件文件夹，离线编辑器已内置其中。在有网络的机器上从 [releases 页面](https://github.com/doge-liang/obsidian-drawio/releases/latest)下载，关闭 Obsidian 后解压到 `<vault>/.obsidian/plugins/`（压缩包内只有一个 `drawio-editor/` 文件夹；覆盖解压到现有安装之上也没有问题），然后启用插件并选择 **Editor source → Offline (bundled webapp)**。
+
 从源码构建同样可行，产物布局相同：先运行 `npm run fetch-drawio` 再 `npm run build`，并将 `webapp/` 文件夹与 `main.js` 一并复制（参见下文的[开发](#开发)章节）。
 
 ## 注意事项与限制
