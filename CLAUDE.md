@@ -261,25 +261,32 @@ name; the manifest id inside is `drawio-editor`).
 **Since 0.2.2, releases are built and published automatically** by
 `.github/workflows/release.yml`, triggered by pushing a version tag:
 
-1. Bump `manifest.json` `version` **and** add the matching entry to `versions.json`.
-   Commit and push to `main`.
-2. `env -u GITHUB_TOKEN git tag <ver> && env -u GITHUB_TOKEN git push origin <ver>`
+1. Add a `## <ver> - <YYYY-MM-DD>` section for the release at the **top** of
+   `CHANGELOG.md`'s version list (Keep a Changelog subsections: Added / Changed /
+   Fixed / Performance as applicable). The workflow publishes this section
+   verbatim as the GitHub release notes — write it for end users, and call out
+   behavior changes prominently.
+2. Bump `manifest.json` `version` **and** add the matching entry to `versions.json`.
+   Commit (changelog + bump together is fine) and push to `main`.
+3. `env -u GITHUB_TOKEN git tag <ver> && env -u GITHUB_TOKEN git push origin <ver>`
    — the tag must exactly equal `manifest.version` (no `v` prefix) and must be
    pushed only after the version-bump commit is already on `main` (the workflow's
    own "verify tag matches manifest.json" step now hard-fails if they ever
    diverge — this used to be a manual, easy-to-miss check).
-3. The workflow does the rest on a clean checkout: `npm ci` → verify tag ==
+4. The workflow does the rest on a clean checkout: `npm ci` → verify tag ==
    manifest version → `npm run fetch-drawio` → `npm test` → `npm run build` →
    generate a signed build-provenance attestation for `main.js`/`manifest.json`/
    `styles.css` (`actions/attest-build-provenance`) → `gh release create` with
-   those three assets and `--generate-notes`.
-4. **Don't also run `gh release create` by hand** after pushing the tag — it
-   would race/conflict with the workflow's own release creation. If you want
-   hand-written release notes instead of the auto-generated ones, edit the
-   release afterward with `gh release edit <ver> --notes "..."`.
-5. Publishing a release (however it's created) is how the Obsidian review
+   those three assets, using the `CHANGELOG.md` section for the tag as the
+   notes (falls back to `--generate-notes` with a warning when the section is
+   missing — treat that warning as a bug in the release, not a feature).
+5. **Don't also run `gh release create` by hand** after pushing the tag — it
+   would race/conflict with the workflow's own release creation. To correct
+   published notes afterward, fix `CHANGELOG.md` on `main` (the source of
+   truth) and mirror the fix with `gh release edit <ver> --notes-file ...`.
+6. Publishing a release (however it's created) is how the Obsidian review
    **re-runs** — cut one whenever you want a fresh review pass, even for a small fix.
-6. **`env -u GITHUB_TOKEN`** is still required for any `gh`/`git` write op you run
+7. **`env -u GITHUB_TOKEN`** is still required for any `gh`/`git` write op you run
    by hand (tagging, editing release notes, etc.) — the ambient PAT lacks scope;
    the `doge-liang` oauth login has it. (The workflow itself uses the auto-issued
    `GITHUB_TOKEN`, unrelated to this.)

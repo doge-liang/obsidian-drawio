@@ -60,11 +60,28 @@ jobs:
             manifest.json
             styles.css
 
+      # Release notes come from CHANGELOG.md: everything between the
+      # "## <tag> ..." heading and the next "## " heading. Falls back to
+      # --generate-notes (with a warning) when the section is missing, so a
+      # forgotten changelog entry degrades gracefully instead of failing the
+      # release — but keep CHANGELOG.md current; the fallback notes are just
+      # a commit listing.
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            main.js manifest.json styles.css \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes
+          awk -v ver="$GITHUB_REF_NAME" '
+            /^## / { if (found) exit; if ($2 == ver) { found = 1; next } }
+            found' CHANGELOG.md > release-notes.md
+          if [ -s release-notes.md ]; then
+            gh release create "$GITHUB_REF_NAME" \
+              main.js manifest.json styles.css \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file release-notes.md
+          else
+            echo "::warning::CHANGELOG.md has no section for $GITHUB_REF_NAME — using generated notes"
+            gh release create "$GITHUB_REF_NAME" \
+              main.js manifest.json styles.css \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          fi
