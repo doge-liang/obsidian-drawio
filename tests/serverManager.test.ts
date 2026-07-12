@@ -27,9 +27,16 @@ function rawGetStatus(port: number, path: string): Promise<number> {
   });
 }
 
+// Every test gets its own port range: fetch() (undici) pools keep-alive
+// connections per origin, and a pooled socket can outlive a stopped server.
+// Reusing one against a *restarted* server on the same port flakes with
+// "other side closed" — or worse, the request is answered by the previous
+// test's still-draining server (observed as 404 instead of 403 in the
+// symlink test, whose fixture only exists in its own root). Distinct ranges
+// make cross-test socket reuse structurally impossible.
 describe('ServerManager', () => {
   it('serves index.html after ensureStarted', async () => {
-    mgr = new ServerManager(fakeWebapp(), { min: 41100, max: 41200, idleMs: 60000 });
+    mgr = new ServerManager(fakeWebapp(), { min: 41100, max: 41109, idleMs: 60000 });
     const port = await mgr.ensureStarted();
     const res = await fetch(`http://127.0.0.1:${port}/index.html`);
     expect(await res.text()).toContain('drawio');
@@ -49,21 +56,21 @@ describe('ServerManager', () => {
     //
     // Verified manually: `fetch('http://host/..%2f..%2fetc%2fpasswd')` sends
     // exactly that string; server logs `req.url = '/..%2f..%2fetc%2fpasswd'`.
-    mgr = new ServerManager(fakeWebapp(), { min: 41100, max: 41200, idleMs: 60000 });
+    mgr = new ServerManager(fakeWebapp(), { min: 41110, max: 41119, idleMs: 60000 });
     const port = await mgr.ensureStarted();
     const res = await fetch(`http://127.0.0.1:${port}/..%2f..%2fetc%2fpasswd`);
     expect(res.status).toBe(403);
   });
 
   it('ensureStarted is idempotent (same port)', async () => {
-    mgr = new ServerManager(fakeWebapp(), { min: 41100, max: 41200, idleMs: 60000 });
+    mgr = new ServerManager(fakeWebapp(), { min: 41120, max: 41129, idleMs: 60000 });
     const p1 = await mgr.ensureStarted();
     const p2 = await mgr.ensureStarted();
     expect(p1).toBe(p2);
   });
 
   it('concurrent ensureStarted calls share one in-flight startup (no double bind)', async () => {
-    mgr = new ServerManager(fakeWebapp(), { min: 41100, max: 41200, idleMs: 60000 });
+    mgr = new ServerManager(fakeWebapp(), { min: 41130, max: 41139, idleMs: 60000 });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const startSpy = vi.spyOn(mgr as any, 'start');
     const [p1, p2] = await Promise.all([mgr.ensureStarted(), mgr.ensureStarted()]);
@@ -74,7 +81,7 @@ describe('ServerManager', () => {
   });
 
   it('setIdleMs updates the timeout without stopping the running server', async () => {
-    mgr = new ServerManager(fakeWebapp(), { min: 41100, max: 41200, idleMs: 60000 });
+    mgr = new ServerManager(fakeWebapp(), { min: 41140, max: 41149, idleMs: 60000 });
     const port = await mgr.ensureStarted();
     mgr.setIdleMs(120000);
     const res = await fetch(`http://127.0.0.1:${port}/index.html`);
@@ -82,7 +89,7 @@ describe('ServerManager', () => {
   });
 
   it('returns 400 for malformed percent-encoding (does not crash)', async () => {
-    mgr = new ServerManager(fakeWebapp(), { min: 41100, max: 41200, idleMs: 60000 });
+    mgr = new ServerManager(fakeWebapp(), { min: 41150, max: 41159, idleMs: 60000 });
     const port = await mgr.ensureStarted();
     // fetch() would normalize a lone %, so send a raw request with an invalid %ZZ sequence.
     const status = await rawGetStatus(port, '/%ZZ');
@@ -94,16 +101,11 @@ describe('ServerManager', () => {
     const outside = mkdtempSync(join(tmpdir(), 'secret-'));
     writeFileSync(join(outside, 'secret.txt'), 'TOPSECRET');
     symlinkSync(join(outside, 'secret.txt'), join(root, 'link.txt'));
-    mgr = new ServerManager(root, { min: 41100, max: 41200, idleMs: 60000 });
+    mgr = new ServerManager(root, { min: 41160, max: 41169, idleMs: 60000 });
     const port = await mgr.ensureStarted();
     const res = await fetch(`http://127.0.0.1:${port}/link.txt`);
     expect(res.status).toBe(403);
   });
-
-  // The cache tests below each get their own port range: fetch() (undici)
-  // pools keep-alive connections per origin, and reusing a pooled socket
-  // against a *restarted* server on the same port flakes with
-  // "other side closed".
 
   it('serves cacheable responses with validators', async () => {
     mgr = new ServerManager(fakeWebapp(), { min: 41210, max: 41219, idleMs: 60000 });

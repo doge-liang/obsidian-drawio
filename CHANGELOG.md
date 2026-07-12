@@ -1,0 +1,160 @@
+# Changelog
+
+All notable changes to the Drawio plugin are documented in this file. The format
+is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
+numbers are plain `X.Y.Z` (no `v` prefix), matching the plugin's release tags.
+
+The release workflow publishes the tagged version's section below as the GitHub
+release notes, so a version's section must be complete before its tag is pushed
+(see the Release process section of CLAUDE.md).
+
+## 0.5.0 - 2026-07-12
+
+### Changed — action may be required
+
+- **The offline editor no longer falls back to the online editor silently.**
+  With Editor source set to Offline (the default) and no offline webapp
+  installed — the state of every store install whose settings were never
+  touched — the editor now shows an install prompt instead of quietly loading
+  diagrams.net. Install the offline editor with one click in the plugin
+  settings (see below), or set **Editor source → Online** to keep the previous
+  behavior explicitly. A one-time notice on plugin load points at the setting.
+
+### Added
+
+- **One-click offline editor install** in settings: downloads the pinned drawio
+  release (~53 MB) from GitHub with live progress, validates it, and swaps it
+  into place atomically — a failed or interrupted install never damages an
+  existing one. When a plugin update bumps the bundled drawio version, the same
+  settings row offers **Update** so the editor stays in lockstep with the
+  bundled preview viewer.
+- **Pin button on multi-page embed previews**: writes the currently shown page
+  into the wikilink (`![[diagram.drawio#Page-2]]`), so the embed keeps opening
+  on that page.
+- **Read-only mode for `.drawio` files on desktop** (opt-in): open diagram
+  files as a static preview instead of the embedded editor — for workflows
+  centred on an external drawio app.
+- **Preview click action** setting: clicking a preview edits the diagram
+  (default), opens the file in the system default app, or does nothing.
+
+### Fixed
+
+- Flipping pages on one multi-page preview no longer changes the page shown by
+  other multi-page previews in the same window.
+- The read-only file view's hover "Edit" hint now floats over the diagram
+  itself instead of the middle of the tab.
+- Preview alignment changes apply immediately to already-rendered previews.
+
+### Performance
+
+- The local offline-editor server now sends HTTP cache headers (`ETag` /
+  `Last-Modified`, conditional 304s), so reopening the editor skips
+  re-transferring the webapp and reuses Chromium's compiled-code cache —
+  noticeably faster editor startup after the first open.
+
+## 0.4.1 - 2026-07-07
+
+### Fixed
+
+- Desktop editor mounts failed in offline mode ("Failed to fetch dynamically
+  imported module"): dynamic `node:` imports are now lowered to lazy
+  `require()` calls in the bundle, with a build-time guard that fails the build
+  if a native `import()` of a Node built-in ever reappears.
+
+## 0.4.0 - 2026-07-06
+
+### Added
+
+- **Mobile (phone/tablet) support**: previews for code blocks and embeds, and a
+  read-only view for standalone `.drawio` files. Editing stays desktop-only.
+
+### Fixed
+
+- Plugin load crashed on iOS below 16.4 (lookbehind regex parsed at load time);
+  desktop-only registration is now gated behind `Platform.isDesktopApp`.
+
+## 0.3.2 - 2026-07-05
+
+### Fixed
+
+- The editor in a popped-out window stalled after loading: postMessage replies
+  are now dispatched from the popout window's own realm.
+
+## 0.3.1 - 2026-07-05
+
+### Added
+
+- **Multi-page diagrams**: a compact page switcher on previews, and
+  `![[file.drawio#Page-N]]` opens an embed on a specific page.
+
+### Fixed
+
+- Popout-window message routing, an editor mount/destroy race, and a local
+  server startup race.
+
+### Changed
+
+- `minAppVersion` raised to 1.4.0. The settings tab stays on the stable
+  `display()` API — the declarative replacement is still early-access only.
+
+## 0.2.2 - 2026-07-03
+
+### Changed
+
+- Releases are now built and published by CI from a clean checkout, with signed
+  build-provenance attestations for the release assets.
+- Removed an unused `dompurify` dependency (never imported; flagged by advisory
+  scanners).
+
+## 0.2.1 - 2026-07-03
+
+### Fixed
+
+- Guarded `Vault.createFolder()` for Obsidian versions below 1.4.0
+  (plugin-review finding).
+
+## 0.2.0 - 2026-07-03
+
+### Added
+
+- **New diagram location** setting: vault root, the current note's folder, or a
+  fixed folder (created if missing).
+- New entry points: a ribbon button and a "New drawio diagram" item in the file
+  explorer's folder context menu.
+- **Preview alignment** setting: centered (default) or left-aligned previews.
+
+## 0.1.3 - 2026-06-06
+
+### Fixed
+
+- Previews no longer create `<script>` elements: the bundled viewer runs via
+  indirect eval, and drawio's unused external MathJax loader is stripped at
+  build time (plugin-review findings).
+
+## 0.1.2 - 2026-06-06
+
+### Changed
+
+- The editor defaults to the bundled offline webapp, falling back to the online
+  editor when the webapp isn't installed.
+
+### Fixed
+
+- Review-round fixes: keep the user's view location on unload, popout-safe
+  globals, settings tab on the supported API.
+
+## 0.1.1 - 2026-06-05
+
+### Changed
+
+- Maintenance release for community review; the plugin id `drawio-editor` is
+  used consistently across manifest, tag, and release assets.
+
+## 0.1.0 - 2026-06-05
+
+### Added
+
+- First release: embed, preview, and edit draw.io (diagrams.net) diagrams via
+  ` ```drawio ` code blocks, standalone `.drawio` files (editor in the file's
+  tab), and `![[file.drawio]]` embeds — with previews in both editing and
+  reading views, and diagrams stored as readable uncompressed XML.
