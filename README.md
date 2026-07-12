@@ -1,3 +1,5 @@
+**English** | [中文](README.zh-CN.md)
+
 # Drawio for Obsidian
 
 [![Release](https://img.shields.io/github/v/release/doge-liang/obsidian-drawio?label=release&color=blue)](https://github.com/doge-liang/obsidian-drawio/releases/latest)
