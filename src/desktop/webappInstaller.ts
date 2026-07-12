@@ -1,4 +1,4 @@
-import { get } from 'node:https';
+import { get as httpsGet } from 'node:https';
 import {
   existsSync, mkdirSync, renameSync, rmSync, writeFileSync,
 } from 'node:fs';
@@ -35,15 +35,22 @@ export async function installWebapp(
 
 /** Resolve after the renderer has committed a frame (double-rAF), then one
  * macrotask later — the last chance to show fresh progress text before a
- * long synchronous block. */
+ * long synchronous block. Raced against a short timeout: Chromium suspends
+ * rAF while the window is hidden/minimized, and without the timeout arm an
+ * install finishing in the background would stall before extraction until
+ * the window became visible again. */
 function nextPaint(): Promise<void> {
-  return new Promise((resolve) => {
+  const paint = new Promise<void>((resolve) => {
     activeWindow.requestAnimationFrame(() => {
       activeWindow.requestAnimationFrame(() => {
         activeWindow.setTimeout(resolve, 0);
       });
     });
   });
+  const hiddenWindowFallback = new Promise<void>((resolve) => {
+    activeWindow.setTimeout(resolve, 250);
+  });
+  return Promise.race([paint, hiddenWindowFallback]);
 }
 
 /** The post-download half, separated for network-free testing: extract into a
@@ -136,24 +143,37 @@ function extract(war: Uint8Array, destDir: string): void {
   }
 }
 
+/** Injection points for tests only: `getter` swaps node:https for node:http
+ * (so error paths can be exercised against a local plain-HTTP server) and
+ * `idleMs` shrinks the stall timeout. Production callers pass neither. */
+export interface DownloadOpts {
+  idleMs?: number;
+  getter?: typeof httpsGet;
+}
+
 /** GET with redirect following (GitHub release assets 302 to object storage).
- * node:https rather than fetch/requestUrl: streams progress and needs no CORS. */
-function download(
+ * node:https rather than fetch/requestUrl: streams progress and needs no CORS.
+ * A socket-inactivity timeout aborts stalled transfers — without it a dead
+ * connection would wedge the settings row in "Installing…" until plugin
+ * reload. Exported for tests. */
+export function download(
   url: string,
   onProgress: (p: InstallProgress) => void,
   redirects = 0,
+  opts: DownloadOpts = {},
 ): Promise<Uint8Array> {
+  const { idleMs = 30_000, getter = httpsGet } = opts;
   return new Promise((resolve, reject) => {
     if (redirects > 5) {
       reject(new Error(`Too many redirects downloading ${url}`));
       return;
     }
-    const req = get(url, (res) => {
+    const req = getter(url, (res) => {
       const status = res.statusCode ?? 0;
       const location = res.headers.location;
       if (status >= 300 && status < 400 && location) {
         res.resume();
-        resolve(download(new URL(location, url).toString(), onProgress, redirects + 1));
+        resolve(download(new URL(location, url).toString(), onProgress, redirects + 1, opts));
         return;
       }
       if (status !== 200) {
@@ -162,7 +182,11 @@ function download(
         return;
       }
       const lenHeader = res.headers['content-length'];
-      const total = lenHeader ? Number(lenHeader) : null;
+      const parsedLen = Number(lenHeader);
+      // Number.isFinite guards a malformed Content-Length: NaN compares
+      // unequal to everything, which would fail the completeness check below
+      // on every download.
+      const total = lenHeader && Number.isFinite(parsedLen) ? parsedLen : null;
       const chunks: Buffer[] = [];
       let received = 0;
       res.on('data', (chunk: Buffer) => {
@@ -178,6 +202,11 @@ function download(
         resolve(Buffer.concat(chunks));
       });
       res.on('error', reject);
+    });
+    // Socket-inactivity watchdog (covers both a hung connect and a
+    // mid-transfer stall). destroy(err) surfaces through 'error' below.
+    req.setTimeout(idleMs, () => {
+      req.destroy(new Error(`Download stalled (no data for ${Math.round(idleMs / 1000)} s) — check your connection and retry.`));
     });
     req.on('error', reject);
   });

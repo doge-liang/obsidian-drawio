@@ -262,10 +262,8 @@ name; the manifest id inside is `drawio-editor`).
 `.github/workflows/release.yml`, triggered by pushing a version tag:
 
 1. Add a `## <ver> - <YYYY-MM-DD>` section for the release at the **top** of
-   `CHANGELOG.md`'s version list (Keep a Changelog subsections: Added / Changed /
-   Fixed / Performance as applicable). The workflow publishes this section
-   verbatim as the GitHub release notes — write it for end users, and call out
-   behavior changes prominently.
+   `CHANGELOG.md`'s version list, following the **Release-note format** below.
+   The workflow publishes this section verbatim as the GitHub release notes.
 2. Bump `manifest.json` `version` **and** add the matching entry to `versions.json`.
    Commit (changelog + bump together is fine) and push to `main`.
 3. `env -u GITHUB_TOKEN git tag <ver> && env -u GITHUB_TOKEN git push origin <ver>`
@@ -275,11 +273,15 @@ name; the manifest id inside is `drawio-editor`).
    diverge — this used to be a manual, easy-to-miss check).
 4. The workflow does the rest on a clean checkout: `npm ci` → verify tag ==
    manifest version → `npm run fetch-drawio` → `npm test` → `npm run build` →
-   generate a signed build-provenance attestation for `main.js`/`manifest.json`/
-   `styles.css` (`actions/attest-build-provenance`) → `gh release create` with
-   those three assets, using the `CHANGELOG.md` section for the tag as the
-   notes (falls back to `--generate-notes` with a warning when the section is
-   missing — treat that warning as a bug in the release, not a feature).
+   package the offline install bundle (`drawio-editor-<ver>-offline.zip`:
+   the full plugin folder incl. `webapp/` and drawio's Apache-2.0 license
+   from `licenses/drawio/` — the bundle *redistributes* drawio, hence the
+   license; see `licenses/drawio/README.md`) → generate a signed
+   build-provenance attestation covering all four assets
+   (`actions/attest-build-provenance`) → `gh release create` with those four
+   assets, using the `CHANGELOG.md` section for the tag as the notes (falls
+   back to `--generate-notes` with a warning when the section is missing —
+   treat that warning as a bug in the release, not a feature).
 5. **Don't also run `gh release create` by hand** after pushing the tag — it
    would race/conflict with the workflow's own release creation. To correct
    published notes afterward, fix `CHANGELOG.md` on `main` (the source of
@@ -295,6 +297,30 @@ GitHub Actions tag filters are **glob patterns, not regex** — `on.push.tags` o
 supports `*`, `**`, `+`, `?`, `!`, no `[0-9]`-style character classes. The workflow's
 trigger (`'*.*.*'`) is deliberately loose for this reason; the in-workflow
 manifest-version check is the real gate.
+
+### Release-note format (binding — follow in every session)
+
+`CHANGELOG.md` is the source of truth for release notes; the tagged version's
+section is published verbatim. Rules:
+
+- **Audience is the plugin's end users, not contributors.** Describe observable
+  behavior ("reopening the editor is faster"), never implementation ("added
+  ETag handling"). Name settings/buttons in **bold** exactly as the UI labels
+  them; file names, code, and paths in backticks.
+- Subsections in this fixed order, including only those that apply:
+  `### Changed — action may be required` (ALWAYS first when present — any
+  change in default behavior or required user action goes here, stated as:
+  what changed, who is affected, what to do), then `### Added`,
+  `### Fixed`, `### Performance`.
+- One bullet per user-visible change, 1–3 lines each, leading with the
+  outcome. No bullets for internal-only work (tests, CI, refactors, docs);
+  a release containing *only* internal work gets a single line saying so
+  under `### Changed`.
+- English; sentence case; no emoji, no exclamation marks, no boilerplate
+  footers ("Full Changelog" links etc.).
+- New sections go at the **top** of the version list; the date is the actual
+  release date. Never rewrite a published version's section except to fix
+  factual errors (then mirror the fix via `gh release edit`, see step 5).
 
 ## Review status (as of 0.3.1)
 
@@ -447,5 +473,10 @@ depends on the new setting, call `this.display()` in its `onChange` to re-render
 - No unnecessary `globalThis` casts.
 - A promise-returning function passed where a sync callback is expected needs
   wrapping: `() => { void asyncFn(); }`, not a bare reference.
+
+**README.md changes:** mirror every content change in `README.zh-CN.md` — the
+two files are full translations of each other and drift silently otherwise.
+(If the bilingual PR adding `README.zh-CN.md` isn't merged yet, update that
+PR's branch instead of skipping the mirror.)
 
 **Cutting a release:** see the Release process section above.

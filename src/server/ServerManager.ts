@@ -107,16 +107,18 @@ export class ServerManager {
       res.writeHead(404); res.end('Not found'); return;
     }
 
-    // The webapp is a pinned, immutable artifact (scripts/fetch-drawio.mjs), so
-    // responses are safely cacheable. Without these headers Chromium re-fetches
-    // the whole webapp on every editor mount AND never engages V8's code cache
-    // for app.min.js — re-parsing it dominates the editor's startup delay.
-    // Validators (ETag/Last-Modified) keep post-expiry revalidation a cheap
-    // loopback 304, which preserves the cached entry (and its code cache); a
-    // fetch-drawio version bump changes mtime, so the ETag busts stale copies.
+    // Without cache headers Chromium re-fetches the whole webapp on every
+    // editor mount AND never engages V8's code cache for app.min.js —
+    // re-parsing it dominates the editor's startup delay. `no-cache` (store,
+    // but revalidate every use) rather than a freshness lifetime: the settings
+    // tab's one-click installer can replace webapp/ at any moment, and a
+    // freshness window would keep serving the pre-update editor from cache
+    // until it expired. Revalidation is a cheap loopback 304 that preserves
+    // the cached entry (and its code cache); an install/update changes
+    // mtime, so the ETag busts stale copies immediately.
     const etag = `"${stats.size}-${stats.mtimeMs}"`;
     const cacheHeaders = {
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': 'no-cache',
       'ETag': etag,
       'Last-Modified': stats.mtime.toUTCString(),
     };
