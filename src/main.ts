@@ -1,4 +1,6 @@
-import { Plugin, FileSystemAdapter, Notice, Platform } from 'obsidian';
+import { Plugin, FileSystemAdapter, Platform } from 'obsidian';
+import { OfflineEditorNotInstalledError } from './model/errors';
+import { InstallStatus } from './model/installStatus';
 import { DrawioSettings, DEFAULT_SETTINGS } from './settings';
 import type { ServerManager } from './server/ServerManager';
 import { DrawioModal } from './editor/DrawioModal';
@@ -10,8 +12,9 @@ import { DRAWIO_VIEW_TYPE, DRAWIO_FILE_EXT, ONLINE_DRAWIO_URL } from './constant
 export default class DrawioPlugin extends Plugin {
   settings!: DrawioSettings;
   server: ServerManager | null = null;
-  /** Show the "offline editor missing, using online" notice only once. */
-  private warnedOfflineFallback = false;
+  /** Offline-webapp install state — on the plugin (not the settings tab) so a
+   * mid-install settings re-render can re-attach to the running install. */
+  webappInstallStatus = new InstallStatus();
 
   async onload() {
     await this.loadSettings();
@@ -61,10 +64,11 @@ export default class DrawioPlugin extends Plugin {
     this.server?.stop();
   }
 
-  /** Absolute path to this plugin's folder on disk. Desktop-only caller
-   * (resolveBaseUrl's offline branch) — dynamically imports node:path so this
-   * method's own presence in main.ts never triggers an eager require() on
-   * mobile. */
+  /** Absolute path to this plugin's folder on disk. Desktop-only callers
+   * (resolveBaseUrl's offline branch, isWebappInstalled(),
+   * installedWebappVersion(), and the settings tab's install flow) —
+   * dynamically imports node:path so this method's own presence in main.ts
+   * never triggers an eager require() on mobile. */
   async pluginDir(): Promise<string> {
     const adapter = this.app.vault.adapter;
     if (adapter instanceof FileSystemAdapter) {
@@ -74,30 +78,44 @@ export default class DrawioPlugin extends Plugin {
     throw new Error('Drawio plugin requires a desktop (FileSystem) vault');
   }
 
+  /** Whether the bundled offline webapp is installed (same criterion the local
+   * server relies on: webapp/index.html exists). Desktop-only caller; node
+   * modules are imported dynamically per the mobile-safety rule. */
+  async isWebappInstalled(): Promise<boolean> {
+    const path = await import('node:path');
+    const fs = await import('node:fs');
+    return fs.existsSync(path.join(await this.pluginDir(), 'webapp', 'index.html'));
+  }
+
+  /** The installed webapp's pinned version (from the DRAWIO_VERSION file the
+   * installer/fetch script writes), or null when absent — manual installs may
+   * not carry the file, which is fine. Desktop-only caller. */
+  async installedWebappVersion(): Promise<string | null> {
+    try {
+      const path = await import('node:path');
+      const fs = await import('node:fs');
+      const raw = fs.readFileSync(
+        path.join(await this.pluginDir(), 'webapp', 'DRAWIO_VERSION'), 'utf8');
+      return raw.trim() || null;
+    } catch {
+      return null;
+    }
+  }
+
   async resolveBaseUrl(): Promise<string> {
     const mode = this.settings.drawioMode;
     if (mode === 'custom' && this.settings.customDrawioUrl) {
       return this.settings.customDrawioUrl;
     }
     if (mode === 'offline') {
-      const path = await import('node:path');
-      const fs = await import('node:fs');
-      const indexPath = path.join(await this.pluginDir(), 'webapp', 'index.html');
-      if (fs.existsSync(indexPath)) {
-        const port = await this.server!.ensureStarted();
-        this.server!.touch();
-        return `http://127.0.0.1:${port}/index.html`;
+      // No fallback: offline means offline. The entry points surface this
+      // error's message, which points at the settings-tab installer.
+      if (!(await this.isWebappInstalled())) {
+        throw new OfflineEditorNotInstalledError();
       }
-      // No bundled webapp (e.g. a community-store install, where the ~145 MB
-      // webapp can't ship). Fall back to the online editor so it still works.
-      if (!this.warnedOfflineFallback) {
-        this.warnedOfflineFallback = true;
-        new Notice(
-          'Drawio: the bundled offline editor isn\'t installed — using the online editor (diagrams.net). See the README to enable the offline editor.',
-          8000,
-        );
-      }
-      return ONLINE_DRAWIO_URL;
+      const port = await this.server!.ensureStarted();
+      this.server!.touch();
+      return `http://127.0.0.1:${port}/index.html`;
     }
     // 'online' (and 'custom' with no URL set) → the hosted diagrams.net embed.
     return ONLINE_DRAWIO_URL;

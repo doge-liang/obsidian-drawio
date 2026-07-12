@@ -37,8 +37,9 @@ These are separate; a change to one rarely affects the other.
 
 - `src/main.ts` — plugin entry: settings, local server, registers the code-block
   processor / file view / embeds / `Create new diagram` command / settings tab.
-  `resolveBaseUrl()` picks the editor URL (offline → local server, with **automatic
-  online fallback** when the webapp isn't installed).
+  `resolveBaseUrl()` picks the editor URL (offline → local server; throws a typed
+  `OfflineEditorNotInstalledError` when the webapp isn't installed — the automatic
+  online fallback was removed after 0.4.x, **no automatic fallback** anymore).
 - `src/constants.ts` — view type, file ext, `ONLINE_DRAWIO_URL`, `EMPTY_DIAGRAM`, `buildEmbedQuery`.
 - `src/settings.ts` / `src/settingsTab.ts` — settings model + settings tab.
 - `src/model/` — `DrawioSource` (edit-target abstraction: code block or file),
@@ -79,9 +80,11 @@ name; the manifest id inside is `drawio-editor`).
   `require(...)` call — which throws immediately on mobile (no Node runtime),
   crashing the *entire plugin load* before `onload()` even runs. Fixed by
   never letting a `node:*`/`electron` import be *static and top-level* outside
-  `src/server/**` or `src/desktop/**` — both are only ever reached through the
-  one `Platform.isDesktopApp`-gated dynamic import in `main.ts`'s
-  `maybeRegisterDesktopFeatures()`. A dynamic `await import(...)` at the point
+  `src/server/**` or `src/desktop/**` — both are only ever reached through
+  `Platform.isDesktopApp`-gated dynamic imports: `main.ts`'s
+  `maybeRegisterDesktopFeatures()`, and `settingsTab.ts`'s `startInstall()`
+  (whose offline-editor row only renders inside the tab's desktop-gated
+  block). A dynamic `await import(...)` at the point
   of use (e.g. `main.ts`'s `pluginDir()`/`resolveBaseUrl()`) is fine anywhere,
   since it's never eagerly evaluated — only a *static* top-level import gets
   hoisted and unconditionally `require()`d. **If you add a new Node/Electron
@@ -98,7 +101,9 @@ name; the manifest id inside is `drawio-editor`).
     which rejects with `TypeError: Failed to fetch dynamically imported
     module`. In 0.4.0 that broke **every desktop editor mount in offline mode**
     (`resolveBaseUrl()` threw before its webapp check, so not even the online
-    fallback ran). Fixed in 0.4.1 by `supported: { 'dynamic-import': false }`
+    fallback ran — that fallback has since been removed, see "Default editor
+    mode" below; at the time this bug was found it still existed). Fixed in
+    0.4.1 by `supported: { 'dynamic-import': false }`
     in `esbuild.config.mjs`, which lowers every dynamic import to a lazy
     promise-wrapped `require()` (still evaluated at the call site, so the
     mobile rule above holds), plus `guardNativeNodeImportsPlugin`, which fails
@@ -169,9 +174,28 @@ name; the manifest id inside is `drawio-editor`).
     good value) since `display()` has no built-in `validate` callback.
 - **`onunload()` must NOT `detachLeavesOfType`.** Detaching resets the user's view to
   its default location on next load. Only stop the server.
-- **Default editor mode is `offline`** with automatic online fallback. The ~145 MB
-  `webapp/` can't ship via the store, so store installs have no webapp and
-  `resolveBaseUrl()` falls back to `ONLINE_DRAWIO_URL` (one-time Notice, not a throw).
+- **Default editor mode is `offline`, with NO automatic online fallback** (the
+  fallback existed through 0.4.x and was removed on purpose — don't reintroduce
+  it). The ~145 MB `webapp/` can't ship via the store, so store installs start
+  without it: `resolveBaseUrl()` throws `OfflineEditorNotInstalledError`
+  (`src/model/errors.ts`), whose message both editor entry points surface, and
+  the settings tab offers a one-click installer
+  (`src/desktop/webappInstaller.ts`: `node:https` download of the pinned
+  `draw.war` → `fflate` extract to a `webapp.installing/` staging dir →
+  validate `index.html`/`js/viewer.min.js` exist → rename-aside swap into
+  `webapp/` — the existing `webapp/` is renamed to `webapp.old/` first, the
+  staging dir is renamed into `webapp/`, and on failure `webapp.old/` is
+  renamed straight back so an install never leaves the vault with no webapp at
+  all; a successful install best-effort-removes the `webapp.old/` leftover;
+  the caller stops the local server first for Windows file locks; when the
+  installed webapp's `DRAWIO_VERSION` file differs from the pinned constant,
+  the row shows an **Update** button — same pipeline, always installs the
+  pin, keeping the webapp in lockstep with the bundled viewer). `fflate` is
+  a devDependency inlined by esbuild. The pinned version lives in
+  `src/constants.ts` (`DRAWIO_VERSION`) and a test asserts it matches
+  `scripts/fetch-drawio.mjs`. A load-time notice
+  (`registerDesktopFeatures.ts`) points offline-mode users at settings when
+  the webapp is missing.
 - **Popout-window safety**: use `activeDocument`/`activeWindow` (baseline-supported),
   not `document`/`window`, in render paths.
 - **A popped-out `.drawio` editor needs BOTH directions of the `postMessage` bridge

@@ -1,5 +1,7 @@
-import { App, Platform, PluginSettingTab, Setting } from 'obsidian';
+import { App, ButtonComponent, Platform, PluginSettingTab, Setting } from 'obsidian';
 import type DrawioPlugin from './main';
+import { DRAWIO_VERSION } from './constants';
+import { formatInstallProgress, type WebappInstallState } from './model/installStatus';
 import type { DrawioMode, NewDiagramLocation, PreviewAlignment, PreviewClickAction } from './settings';
 
 /**
@@ -27,8 +29,8 @@ export class DrawioSettingTab extends PluginSettingTab {
         .setName('Editor source')
         .setDesc(
           'Offline (default) uses the bundled editor served locally — fully offline, no network. ' +
-          'Online loads the editor from diagrams.net. Or point at a custom embed URL. If Offline is ' +
-          "selected but the bundled webapp isn't installed, the online editor is used automatically.",
+          'Online loads the editor from diagrams.net. Or point at a custom embed URL. The offline ' +
+          'editor requires a one-time install — see below when Offline is selected.',
         )
         .addDropdown((d) => d
           .addOption('online', 'Online (diagrams.net)')
@@ -54,6 +56,11 @@ export class DrawioSettingTab extends PluginSettingTab {
             .setPlaceholder('https://embed.diagrams.net/')
             .setValue(s.customDrawioUrl)
             .onChange((v) => { s.customDrawioUrl = v; save(); }));
+      }
+
+      // Offline-editor install status + one-click installer.
+      if (s.drawioMode === 'offline') {
+        this.renderOfflineEditorStatus(containerEl);
       }
 
       new Setting(containerEl)
@@ -149,6 +156,82 @@ export class DrawioSettingTab extends PluginSettingTab {
               this.plugin.updateServerIdleTimeout();
             });
         });
+    }
+  }
+
+  /** Status row for the bundled offline editor: detection is async (disk
+   * check), so the row renders a checking state and fills itself in; while an
+   * install runs, the row re-subscribes to the plugin-held status each render
+   * so progress survives full display() re-renders. */
+  private renderOfflineEditorStatus(containerEl: HTMLElement): void {
+    const setting = new Setting(containerEl).setName('Offline editor');
+    let button!: ButtonComponent;
+    setting.addButton((b) => {
+      button = b;
+      b.onClick(() => { void this.startInstall(); });
+    });
+
+    const status = this.plugin.webappInstallStatus;
+    const refresh = async (state: WebappInstallState) => {
+      button.removeCta();
+      if (state.status === 'installing') {
+        setting.setDesc(state.progressText);
+        button.setButtonText('Installing…').setDisabled(true);
+        return;
+      }
+      if (state.status === 'error') {
+        setting.setDesc(`Install failed: ${state.message}`);
+        button.setButtonText('Retry').setDisabled(false);
+        return;
+      }
+      // idle → check the disk.
+      setting.setDesc('Checking installation…');
+      button.setButtonText('Install').setDisabled(true);
+      const installed = await this.plugin.isWebappInstalled();
+      if (status.state.status !== 'idle') return; // an install started meanwhile
+      if (installed) {
+        const version = await this.plugin.installedWebappVersion();
+        if (version && version !== DRAWIO_VERSION) {
+          // A plugin update bumped the pinned drawio version; previews already
+          // use the new bundled viewer, so nudge the webapp to match. Updating
+          // is the same pipeline as installing (always installs the pin).
+          setting.setDesc(
+            `Installed (drawio ${version}). Update available: this plugin version ` +
+            `bundles drawio ${DRAWIO_VERSION}.`,
+          );
+          button.setButtonText('Update').setCta().setDisabled(false);
+        } else {
+          setting.setDesc(version ? `Installed (drawio ${version}).` : 'Installed.');
+          button.setButtonText('Reinstall').setDisabled(false);
+        }
+      } else {
+        setting.setDesc(
+          'Not installed. Installing downloads ~53 MB from GitHub (one time, needs network); ' +
+          'editing is fully offline afterwards. Reinstalling interrupts any open offline editor.',
+        );
+        button.setButtonText('Install').setCta().setDisabled(false);
+      }
+    };
+    status.subscribe((state) => { void refresh(state); });
+    void refresh(status.state);
+  }
+
+  /** Runs the installer, publishing progress through the plugin-held status.
+   * Stops the local server first: on Windows an open handle inside webapp/
+   * would make the atomic swap fail. */
+  private async startInstall(): Promise<void> {
+    const status = this.plugin.webappInstallStatus;
+    if (status.state.status === 'installing') return;
+    this.plugin.server?.stop();
+    status.set({ status: 'installing', progressText: 'Starting download…' });
+    try {
+      const { installWebapp } = await import('./desktop/webappInstaller');
+      await installWebapp(await this.plugin.pluginDir(), (p) => {
+        status.set({ status: 'installing', progressText: formatInstallProgress(p) });
+      });
+      status.set({ status: 'idle' });
+    } catch (e) {
+      status.set({ status: 'error', message: e instanceof Error ? e.message : String(e) });
     }
   }
 }

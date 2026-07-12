@@ -1,6 +1,7 @@
 import { App, Modal, Notice } from 'obsidian';
 import { DrawioSource } from '../model/DrawioSource';
 import { DrawioEditor, DrawioEditorDeps } from './DrawioEditor';
+import { OfflineEditorNotInstalledError } from '../model/errors';
 
 /**
  * Full-screen modal wrapping a {@link DrawioEditor}. Used for editing code-block
@@ -23,8 +24,14 @@ export class DrawioModal extends Modal {
       await this.editor.mount();
     } catch (err) {
       console.error('[drawio] failed to open editor:', err);
-      new Notice('Drawio: failed to open editor — see console (Ctrl+Shift+I)');
-      this.contentEl.createDiv({ cls: 'drawio-error', text: String(err) });
+      const msg = err instanceof OfflineEditorNotInstalledError
+        ? err.message
+        : 'Drawio: failed to open editor — see console (Ctrl+Shift+I)';
+      new Notice(msg, 8000);
+      this.contentEl.createDiv({
+        cls: 'drawio-error',
+        text: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 

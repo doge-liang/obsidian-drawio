@@ -1,5 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
-import { FileSystemAdapter } from 'obsidian';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('obsidian', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('obsidian')>();
+  return { ...orig, Notice: vi.fn() };
+});
+
+import { FileSystemAdapter, Notice } from 'obsidian';
 import { registerDesktopFeatures } from '../src/desktop/registerDesktopFeatures';
 import type DrawioPlugin from '../src/main';
 
@@ -15,17 +21,23 @@ function fakePlugin() {
       workspace: { on: workspaceOn },
     },
     manifest: { dir: 'drawio-editor' },
-    settings: { serverPortMin: 3000, serverPortMax: 3999, serverIdleTimeout: 300 },
+    settings: {
+      serverPortMin: 3000, serverPortMax: 3999, serverIdleTimeout: 300,
+      drawioMode: 'offline',
+    },
     server: null as unknown,
     register: vi.fn(),
     addCommand: vi.fn(),
     addRibbonIcon: vi.fn(),
     registerEvent: vi.fn(),
+    isWebappInstalled: vi.fn(async () => true),
   };
   return { plugin: raw as unknown as DrawioPlugin, raw, workspaceOn };
 }
 
 describe('registerDesktopFeatures', () => {
+  beforeEach(() => { vi.mocked(Notice).mockClear(); });
+
   it('builds and assigns a ServerManager to plugin.server, and registers its teardown', async () => {
     const { plugin, raw } = fakePlugin();
     await registerDesktopFeatures(plugin);
@@ -60,5 +72,28 @@ describe('registerDesktopFeatures', () => {
     const { plugin, raw } = fakePlugin();
     (raw.app as { vault: { adapter: unknown } }).vault.adapter = {};
     await expect(registerDesktopFeatures(plugin)).rejects.toThrow(/desktop \(FileSystem\) vault/);
+  });
+
+  it('shows a notice when offline mode is set but the webapp is missing', async () => {
+    const { plugin, raw } = fakePlugin();
+    raw.isWebappInstalled = vi.fn(async () => false);
+    await registerDesktopFeatures(plugin);
+    expect(Notice).toHaveBeenCalledWith(
+      expect.stringContaining('offline editor'), expect.any(Number),
+    );
+  });
+
+  it('stays silent when the webapp is installed', async () => {
+    const { plugin } = fakePlugin();
+    await registerDesktopFeatures(plugin);
+    expect(Notice).not.toHaveBeenCalled();
+  });
+
+  it('stays silent in online mode even without the webapp', async () => {
+    const { plugin, raw } = fakePlugin();
+    raw.settings.drawioMode = 'online';
+    raw.isWebappInstalled = vi.fn(async () => false);
+    await registerDesktopFeatures(plugin);
+    expect(Notice).not.toHaveBeenCalled();
   });
 });

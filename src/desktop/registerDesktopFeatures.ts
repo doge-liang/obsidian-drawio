@@ -1,4 +1,4 @@
-import { FileSystemAdapter, TFolder } from 'obsidian';
+import { FileSystemAdapter, Notice, TFolder } from 'obsidian';
 import { join } from 'node:path';
 import { ServerManager } from '../server/ServerManager';
 import { createNewDiagram } from '../file/createDiagram';
@@ -45,4 +45,14 @@ export async function registerDesktopFeatures(plugin: DrawioPlugin): Promise<voi
         .onClick(() => { void createNewDiagram(plugin, file); }));
     }
   }));
+
+  // Lifecycle detection: offline mode selected but the webapp isn't installed.
+  // One notice per plugin load — the settings tab carries the actual installer.
+  if (plugin.settings.drawioMode === 'offline' && !(await plugin.isWebappInstalled())) {
+    new Notice(
+      "Drawio: the offline editor isn't installed — open the plugin settings to " +
+      'install it, or switch the editor source to Online.',
+      10000,
+    );
+  }
 }

@@ -65,7 +65,10 @@ export class DrawioFileView extends TextFileView {
     this.editor = new DrawioEditor(c, source, this.plugin.editorDeps());
     this.editor.mount().catch((err) => {
       console.error('[drawio] file-view editor failed to mount', err);
-      c.createDiv({ cls: 'drawio-error', text: String(err) });
+      c.createDiv({
+        cls: 'drawio-error',
+        text: err instanceof Error ? err.message : String(err),
+      });
     });
   }
 

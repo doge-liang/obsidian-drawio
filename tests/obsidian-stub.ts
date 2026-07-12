@@ -79,8 +79,21 @@ class TextComponent {
   onChange(_cb: (value: string) => void): this { return this; }
 }
 
+export class ButtonComponent {
+  buttonEl: HTMLButtonElement = document.createElement('button');
+  setButtonText(t: string): this { this.buttonEl.textContent = t; return this; }
+  setCta(): this { this.buttonEl.classList.add('mod-cta'); return this; }
+  removeCta(): this { this.buttonEl.classList.remove('mod-cta'); return this; }
+  setDisabled(d: boolean): this { this.buttonEl.disabled = d; return this; }
+  onClick(cb: (evt: MouseEvent) => unknown): this {
+    this.buttonEl.addEventListener('click', () => { void cb(new MouseEvent('click')); });
+    return this;
+  }
+}
+
 export class Setting {
   settingEl: HTMLElement;
+  descEl: HTMLElement;
   private nameEl: HTMLElement;
   constructor(containerEl: HTMLElement) {
     this.settingEl = document.createElement('div');
@@ -88,13 +101,22 @@ export class Setting {
     this.nameEl = document.createElement('div');
     this.nameEl.className = 'setting-item-name';
     this.settingEl.appendChild(this.nameEl);
+    this.descEl = document.createElement('div');
+    this.descEl.className = 'setting-item-description';
+    this.settingEl.appendChild(this.descEl);
     containerEl.appendChild(this.settingEl);
   }
   setName(name: string): this { this.nameEl.textContent = name; return this; }
-  setDesc(_desc: string): this { return this; }
+  setDesc(desc: string): this { this.descEl.textContent = desc; return this; }
   addDropdown(cb: (d: DropdownComponent) => unknown): this { cb(new DropdownComponent()); return this; }
   addToggle(cb: (t: ToggleComponent) => unknown): this { cb(new ToggleComponent()); return this; }
   addText(cb: (t: TextComponent) => unknown): this { cb(new TextComponent()); return this; }
+  addButton(cb: (b: ButtonComponent) => unknown): this {
+    const b = new ButtonComponent();
+    this.settingEl.appendChild(b.buttonEl);
+    cb(b);
+    return this;
+  }
 }
 
 export class MarkdownRenderChild {
