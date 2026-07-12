@@ -111,7 +111,7 @@ describe('ServerManager', () => {
     mgr = new ServerManager(fakeWebapp(), { min: 41210, max: 41219, idleMs: 60000 });
     const port = await mgr.ensureStarted();
     const res = await fetch(`http://127.0.0.1:${port}/index.html`);
-    expect(res.headers.get('cache-control')).toBe('public, max-age=3600');
+    expect(res.headers.get('cache-control')).toBe('no-cache');
     expect(res.headers.get('etag')).toMatch(/^".+"$/);
     expect(res.headers.get('last-modified')).toBeTruthy();
     expect(res.headers.get('content-length')).toBe(String((await res.arrayBuffer()).byteLength));
