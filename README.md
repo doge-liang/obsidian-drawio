@@ -81,6 +81,8 @@ On mobile, only **Preview alignment** and **Follow Obsidian theme** are shown �
 
 A store install ships without the offline drawio webapp (it is ~145 MB, beyond store limits). To install it, open **Settings → Drawio**, select **Editor source → Offline (bundled webapp)**, and click **Install** — a one-time ~53 MB download from GitHub; editing is fully offline afterwards. After a plugin update that bumps the bundled drawio version, the same row shows **Update** until the installed webapp matches again.
 
+**No network on the vault machine?** Every release also ships `drawio-editor-<version>-offline.zip` — the complete plugin folder with the webapp already inside. Download it from the [releases page](https://github.com/doge-liang/obsidian-drawio/releases/latest) on a connected machine and, with Obsidian closed, extract it into `<vault>/.obsidian/plugins/` (it contains a single `drawio-editor/` folder; extracting over an existing install is fine). Then enable the plugin and select **Editor source → Offline (bundled webapp)**.
+
 Building from source also works and produces the same layout: run `npm run fetch-drawio` before `npm run build` and copy the `webapp/` folder alongside `main.js` (see Development below).
 
 ## Notes & limitations

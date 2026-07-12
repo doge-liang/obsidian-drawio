@@ -52,6 +52,24 @@ jobs:
       - name: Verify build artifacts exist
         run: test -f main.js && test -f manifest.json && test -f styles.css
 
+      # Offline install bundle: the complete plugin folder including the
+      # webapp, for air-gapped vaults where the in-app one-click installer
+      # (which needs GitHub access) can't run. Extracting it into
+      # `<vault>/.obsidian/plugins/` yields a ready `drawio-editor/` folder.
+      # The webapp is a redistribution of the pinned drawio release, so the
+      # bundle carries drawio's Apache-2.0 text (licenses/drawio/, see its
+      # README). The Obsidian store only fetches the three named assets and
+      # ignores extra ones.
+      - name: Package offline install bundle
+        run: |
+          BUNDLE="drawio-editor-$GITHUB_REF_NAME-offline.zip"
+          mkdir -p dist/drawio-editor
+          cp main.js manifest.json styles.css dist/drawio-editor/
+          cp -r webapp dist/drawio-editor/webapp
+          cp licenses/drawio/LICENSE dist/drawio-editor/webapp/LICENSE.drawio.txt
+          (cd dist && zip -qr "../$BUNDLE" drawio-editor)
+          unzip -l "$BUNDLE" | tail -1
+
       - name: Generate build provenance attestation
         uses: actions/attest-build-provenance@v4
         with:
@@ -59,6 +77,7 @@ jobs:
             main.js
             manifest.json
             styles.css
+            drawio-editor-*-offline.zip
 
       # Release notes come from CHANGELOG.md: everything between the
       # "## <tag> ..." heading and the next "## " heading. Falls back to
@@ -76,12 +95,14 @@ jobs:
           if [ -s release-notes.md ]; then
             gh release create "$GITHUB_REF_NAME" \
               main.js manifest.json styles.css \
+              "drawio-editor-$GITHUB_REF_NAME-offline.zip" \
               --title "$GITHUB_REF_NAME" \
               --notes-file release-notes.md
           else
             echo "::warning::CHANGELOG.md has no section for $GITHUB_REF_NAME — using generated notes"
             gh release create "$GITHUB_REF_NAME" \
               main.js manifest.json styles.css \
+              "drawio-editor-$GITHUB_REF_NAME-offline.zip" \
               --title "$GITHUB_REF_NAME" \
               --generate-notes
           fi
