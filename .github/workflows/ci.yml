@@ -1,0 +1,45 @@
+name: CI
+
+# PR gate for main: every pull request runs the same test + build pipeline
+# the release workflow uses, so a branch can't merge with a broken build.
+# Also runs on pushes to main as a post-merge baseline. The "test" job name
+# is referenced by main's branch protection required status checks — rename
+# them together.
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# One active run per PR / per branch; a newer push supersedes the old run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      # Downloads the pinned drawio webapp; the build and the viewer-based
+      # test suites need it (see CLAUDE.md).
+      - run: npm run fetch-drawio
+
+      - run: npm test
+
+      - run: npm run build
+
+      - name: Verify build artifacts exist
+        run: test -f main.js && test -f manifest.json && test -f styles.css
