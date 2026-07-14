@@ -8,6 +8,16 @@ The release workflow publishes the tagged version's section below as the GitHub
 release notes, so a version's section must be complete before its tag is pushed
 (see the Release process section of CLAUDE.md).
 
+## 0.5.2 - 2026-07-15
+
+### Changed — action may be required
+
+- **The bundled drawio is updated from 30.0.4 to 30.3.11** (see the
+  [drawio changelog](https://github.com/jgraph/drawio/releases) for what's new).
+  Previews use the new version immediately. If you installed the offline
+  editor, open **Settings → Drawio** and click **Update** to bring the editor
+  to the same version; until then it keeps working on the previous one.
+
 ## 0.5.1 - 2026-07-12
 
 ### Added

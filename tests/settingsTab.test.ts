@@ -84,13 +84,13 @@ describe('offline editor status row', () => {
     Platform.isDesktopApp = true;
     const tab = new DrawioSettingTab({} as never, fakePlugin({
       isWebappInstalled: async () => true,
-      installedWebappVersion: async () => 'v30.0.4',
+      installedWebappVersion: async () => DRAWIO_VERSION,
     }));
     tab.display();
     const row = statusRow(tab.containerEl)!;
     await vi.waitFor(() => {
       expect(row.querySelector('button')?.textContent).toBe('Reinstall');
-      expect(row.querySelector('.setting-item-description')?.textContent).toContain('v30.0.4');
+      expect(row.querySelector('.setting-item-description')?.textContent).toContain(DRAWIO_VERSION);
     });
   });
 

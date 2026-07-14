@@ -8,7 +8,7 @@ export const ONLINE_DRAWIO_URL = 'https://embed.diagrams.net/';
 /** Pinned drawio version — MUST match scripts/fetch-drawio.mjs (guarded by
  * tests/drawioVersionSync.test.ts) so the runtime-installed webapp matches the
  * bundled viewer.min.txt. */
-export const DRAWIO_VERSION = 'v30.0.4';
+export const DRAWIO_VERSION = 'v30.3.11';
 
 /** The pinned drawio webapp archive (a ZIP), downloaded by the settings-tab
  * one-click installer. */
