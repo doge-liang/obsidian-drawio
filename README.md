@@ -41,6 +41,8 @@ All three render as SVG previews in both editing and reading views, and every ed
 
 **Multi-page diagrams:** previews show a page switcher (‹ N / M ›) below the diagram when it has more than one page. `![[file.drawio#Page-2]]` selects the initial page by its name (falling back to the first page if no page matches). Opening the editor always shows all page tabs.
 
+**Converting between code blocks and files:** two palette commands switch a diagram between its two source forms (they work on mobile too). **Extract diagram code block to file** — with the cursor inside a `` ```drawio `` block — moves the block's XML into a new `<note name> diagram.drawio` file next to the note (numbered `2`, `3`, … if that name is taken) and replaces the block with an embed. **Convert diagram embed to code block** — with the cursor on a line containing a `![[….drawio]]` embed — replaces the embed with a `` ```drawio `` block holding the file's XML; the file itself is kept, and any `#Page-…` or `|alias` part of the link is dropped.
+
 ### Platform support
 
 | Feature | Desktop | Tablet | Phone |
