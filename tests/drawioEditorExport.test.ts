@@ -16,14 +16,15 @@ function makeDeps(): DrawioEditorDeps {
 
 function makeExportingSource() {
   const writes: string[] = [];
+  const xmlWrites: string[] = [];
   const source: ExportingSource = {
     title: () => 'dual',
     read: async () => '<mxfile/>',
-    write: async () => { throw new Error('unexpected XML write'); },
+    write: async (xml: string) => { xmlWrites.push(xml); },
     exportFormat: () => 'xmlsvg',
     writeExport: async (uri: string) => { writes.push(uri); },
   };
-  return { source, writes };
+  return { source, writes, xmlWrites };
 }
 
 async function flush() {
@@ -45,8 +46,8 @@ describe('DrawioEditor export round-trip (dual-format sources)', () => {
     }));
   }
 
-  async function mount(source: ExportingSource) {
-    editor = new DrawioEditor(container, source, makeDeps(), { onExit });
+  async function mount(source: ExportingSource, exportTimeoutMs?: number) {
+    editor = new DrawioEditor(container, source, makeDeps(), { onExit, exportTimeoutMs });
     await editor.mount();
     const cw = container.querySelector('iframe')!.contentWindow!;
     vi.spyOn(cw, 'postMessage').mockImplementation((msg: unknown) => {
@@ -114,5 +115,28 @@ describe('DrawioEditor export round-trip (dual-format sources)', () => {
     dispatch({ event: 'export', format: 'xmlsvg', data: 'data:image/svg+xml;base64,Yg==' });
     await flush();
     expect(writes).toHaveLength(2);
+  });
+
+  it('destroy() during a pending export falls back to writing the last XML', async () => {
+    const { source, writes, xmlWrites } = makeExportingSource();
+    await mount(source);
+    dispatch({ event: 'autosave', xml: '<mxfile>edited</mxfile>' });
+    await flush();
+    editor!.destroy();
+    editor = null;
+    await flush();
+    expect(xmlWrites).toEqual(['<mxfile>edited</mxfile>']); // data survives the teardown
+    expect(writes).toEqual([]);
+  });
+
+  it('an unanswered export times out into an XML fallback and completes a pending exit', async () => {
+    const { source, xmlWrites } = makeExportingSource();
+    await mount(source, 30);
+    dispatch({ event: 'save', xml: '<mxfile>final</mxfile>', exit: true });
+    await flush();
+    expect(onExit).not.toHaveBeenCalled();
+    await new Promise((r) => window.setTimeout(r, 80)); // past the 30 ms timeout
+    expect(xmlWrites).toEqual(['<mxfile>final</mxfile>']);
+    expect(onExit).toHaveBeenCalledTimes(1);
   });
 });

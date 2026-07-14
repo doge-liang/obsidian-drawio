@@ -45,6 +45,17 @@ export function buildInitialSvg(xml: string): string {
     `content="${escapeXmlAttr(xml)}"></svg>`;
 }
 
+/** Swap the embedded XML in an existing SVG body, leaving the rendered image
+ * untouched (it goes stale until the next editor save re-exports it), or null
+ * when the text isn't an SVG. */
+export function replaceXmlInSvg(svg: string, xml: string): string | null {
+  const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+  const root = doc.documentElement;
+  if (!root || root.tagName.toLowerCase() !== 'svg') return null;
+  root.setAttribute('content', xml);
+  return new XMLSerializer().serializeToString(doc);
+}
+
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const PNG_TEXT_KEYWORD = 'mxfile';
 
@@ -117,9 +128,8 @@ export function base64ToBytes(b64: string): Uint8Array {
   return out;
 }
 
-/** Minimal valid PNG carrying the given diagram XML in a tEXt chunk. */
-export function buildInitialPng(xml: string): Uint8Array {
-  const base = base64ToBytes(EMPTY_PNG_BASE64);
+/** A tEXt chunk (length + type + keyword\0value + CRC) holding the XML. */
+function makeMxfileChunk(xml: string): Uint8Array {
   // The chunk value must be Latin-1; encodeURIComponent leaves only ASCII.
   const value = encodeURIComponent(xml);
   const payloadLen = PNG_TEXT_KEYWORD.length + 1 + value.length;
@@ -130,13 +140,55 @@ export function buildInitialPng(xml: string): Uint8Array {
   for (let i = 0; i < 4; i++) chunk[4 + i] = 'tEXt'.charCodeAt(i);
   for (let i = 0; i < typeAndData.length; i++) chunk[8 + i] = typeAndData.charCodeAt(i);
   view.setUint32(8 + payloadLen, crc32(chunk.subarray(4, 8 + payloadLen)));
+  return chunk;
+}
 
+/** Minimal valid PNG carrying the given diagram XML in a tEXt chunk. */
+export function buildInitialPng(xml: string): Uint8Array {
+  const base = base64ToBytes(EMPTY_PNG_BASE64);
+  const chunk = makeMxfileChunk(xml);
   // Insert before IEND (the last 12 bytes of a minimal PNG).
   const iendStart = base.length - 12;
   const out = new Uint8Array(base.length + chunk.length);
   out.set(base.subarray(0, iendStart), 0);
   out.set(chunk, iendStart);
   out.set(base.subarray(iendStart), iendStart + chunk.length);
+  return out;
+}
+
+/** Swap the embedded XML in an existing PNG (dropping any previous mxfile
+ * chunk), leaving the image data untouched — it goes stale until the next
+ * editor save re-exports it. Null when the bytes aren't a valid PNG. */
+export function replaceXmlInPng(data: ArrayBuffer | Uint8Array, xml: string): Uint8Array | null {
+  const u8 = data instanceof Uint8Array ? data : new Uint8Array(data);
+  if (u8.length < PNG_SIGNATURE.length) return null;
+  for (let i = 0; i < PNG_SIGNATURE.length; i++) if (u8[i] !== PNG_SIGNATURE[i]) return null;
+  const view = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  const kept: Array<[number, number]> = []; // chunk [start, end) ranges to copy
+  let iendStart = -1;
+  let off = PNG_SIGNATURE.length;
+  while (off + 8 <= u8.length) {
+    const len = view.getUint32(off);
+    const type = latin1(u8, off + 4, off + 8);
+    const end = off + 8 + len + 4;
+    if (end > u8.length) return null;
+    const isMxfileText = type === 'tEXt' &&
+      latin1(u8, off + 8, off + 8 + PNG_TEXT_KEYWORD.length + 1) === PNG_TEXT_KEYWORD + '\0';
+    if (!isMxfileText) kept.push([off, end]);
+    if (type === 'IEND') { iendStart = off; break; }
+    off = end;
+  }
+  if (iendStart < 0) return null;
+  const chunk = makeMxfileChunk(xml);
+  const keptLen = kept.reduce((sum, [s, e]) => sum + (e - s), 0);
+  const out = new Uint8Array(PNG_SIGNATURE.length + keptLen + chunk.length);
+  out.set(u8.subarray(0, PNG_SIGNATURE.length), 0);
+  let cursor = PNG_SIGNATURE.length;
+  for (const [s, e] of kept) {
+    if (s === iendStart) { out.set(chunk, cursor); cursor += chunk.length; }
+    out.set(u8.subarray(s, e), cursor);
+    cursor += e - s;
+  }
   return out;
 }
 

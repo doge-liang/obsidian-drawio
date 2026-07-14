@@ -1,7 +1,8 @@
 import { App, TFile } from 'obsidian';
 import { ExportingSource } from '../model/DrawioSource';
 import {
-  DualFormat, decodeDataUri, extractXmlFromPng, extractXmlFromSvg,
+  DualFormat, buildInitialPng, buildInitialSvg, decodeDataUri,
+  extractXmlFromPng, extractXmlFromSvg, replaceXmlInPng, replaceXmlInSvg,
 } from '../model/dualFormat';
 import { EMPTY_DIAGRAM } from '../constants';
 
@@ -47,9 +48,23 @@ export class DualFormatFileSource implements ExportingSource {
     await this.app.vault.modifyBinary(this.file, copy);
   }
 
-  async write(): Promise<void> {
-    // Never called by the editor for exporting sources; a plain XML body
-    // would destroy the image half of the file.
-    throw new Error('dual-format files are saved via writeExport');
+  /** Fallback persistence when no export payload is available (editor torn
+   * down mid-export, or drawio never replied): swap only the embedded XML so
+   * the diagram data — the source of truth — is never lost. The image part
+   * goes stale until the next save from the editor re-exports it. */
+  async write(xml: string): Promise<void> {
+    if (this.format === 'svg') {
+      const text = await this.app.vault.read(this.file);
+      const body = text.trim() ? replaceXmlInSvg(text, xml) : buildInitialSvg(xml);
+      if (body === null) throw new Error(`"${this.file.name}" is not a valid SVG`);
+      await this.app.vault.modify(this.file, body);
+      return;
+    }
+    const bytes = await this.app.vault.readBinary(this.file);
+    const next = bytes.byteLength === 0 ? buildInitialPng(xml) : replaceXmlInPng(bytes, xml);
+    if (next === null) throw new Error(`"${this.file.name}" is not a valid PNG`);
+    const copy = new ArrayBuffer(next.byteLength);
+    new Uint8Array(copy).set(next);
+    await this.app.vault.modifyBinary(this.file, copy);
   }
 }

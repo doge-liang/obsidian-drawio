@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   base64ToBytes, buildInitialPng, buildInitialSvg, decodeDataUri,
   dualFormatOf, extractXmlFromPng, extractXmlFromSvg,
+  replaceXmlInPng, replaceXmlInSvg,
 } from '../src/model/dualFormat';
 
 const XML = '<mxfile><diagram id="0" name="Page-1">A &amp; B "quoted" <x/></diagram></mxfile>';
@@ -31,6 +32,14 @@ describe('SVG embedding', () => {
     expect(extractXmlFromSvg('<svg xmlns="http://www.w3.org/2000/svg"/>')).toBeNull();
     expect(extractXmlFromSvg('not xml at all')).toBeNull();
   });
+
+  it('replaceXmlInSvg swaps the content attribute, keeping the rest of the body', () => {
+    const svg = buildInitialSvg(XML).replace('</svg>', '<rect width="5"/></svg>');
+    const next = replaceXmlInSvg(svg, '<mxfile>v2</mxfile>')!;
+    expect(extractXmlFromSvg(next)).toBe('<mxfile>v2</mxfile>');
+    expect(next).toContain('<rect');
+    expect(replaceXmlInSvg('plain text', '<x/>')).toBeNull();
+  });
 });
 
 describe('PNG embedding', () => {
@@ -45,6 +54,15 @@ describe('PNG embedding', () => {
     expect(Array.from(png.subarray(0, 8))).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
     const tail = png.subarray(png.length - 8, png.length - 4);
     expect(String.fromCharCode(...tail)).toBe('IEND');
+  });
+
+  it('replaceXmlInPng swaps the chunk without accumulating duplicates', () => {
+    const once = replaceXmlInPng(buildInitialPng(XML), '<mxfile>v2</mxfile>')!;
+    const twice = replaceXmlInPng(once, '<mxfile>v3</mxfile>')!;
+    expect(extractXmlFromPng(twice)).toBe('<mxfile>v3</mxfile>');
+    // Same length as a single-embed PNG with the same payload: old chunk dropped.
+    expect(twice.length).toBe(buildInitialPng('<mxfile>v3</mxfile>').length);
+    expect(replaceXmlInPng(new Uint8Array([1, 2, 3]), '<x/>')).toBeNull();
   });
 
   it('returns null for a PNG without the mxfile chunk and for non-PNG bytes', () => {

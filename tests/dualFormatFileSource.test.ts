@@ -68,9 +68,18 @@ describe('DualFormatFileSource (svg)', () => {
     expect(box.text).toBe(exported);
   });
 
-  it('refuses plain XML writes', async () => {
-    const { app } = makeApp({ text: '' });
-    await expect(new DualFormatFileSource(app, svgFile, 'svg').write()).rejects.toThrow();
+  it('write() falls back to swapping only the embedded XML, keeping the image body', async () => {
+    const { app, box } = makeApp({ text: buildInitialSvg(XML) });
+    const src = new DualFormatFileSource(app, svgFile, 'svg');
+    await src.write('<mxfile>fallback</mxfile>');
+    expect(await src.read()).toBe('<mxfile>fallback</mxfile>');
+    expect(box.text).toContain('<svg'); // still an SVG, not a bare XML body
+  });
+
+  it('write() refuses to clobber a non-SVG body', async () => {
+    const { app } = makeApp({ text: 'not an svg' });
+    await expect(new DualFormatFileSource(app, svgFile, 'svg').write('<x/>'))
+      .rejects.toThrow(/not a valid SVG/);
   });
 });
 
@@ -101,5 +110,18 @@ describe('DualFormatFileSource (png)', () => {
     await new DualFormatFileSource(app, pngFile, 'png')
       .writeExport(`data:image/png;base64,${btoa(bin)}`);
     expect(Array.from(box.bytes)).toEqual(Array.from(next));
+  });
+
+  it('write() falls back to swapping the embedded XML inside the existing PNG', async () => {
+    const { app } = makeApp({ bytes: buildInitialPng(XML) });
+    const src = new DualFormatFileSource(app, pngFile, 'png');
+    await src.write('<mxfile>fallback</mxfile>');
+    expect(await src.read()).toBe('<mxfile>fallback</mxfile>');
+  });
+
+  it('write() refuses to clobber non-PNG bytes', async () => {
+    const { app } = makeApp({ bytes: new Uint8Array([1, 2, 3, 4]) });
+    await expect(new DualFormatFileSource(app, pngFile, 'png').write('<x/>'))
+      .rejects.toThrow(/not a valid PNG/);
   });
 });
