@@ -1,6 +1,8 @@
 import { Notice } from 'obsidian';
-import { DrawioSource } from '../model/DrawioSource';
-import { buildLoadMessage, buildConfigureMessage, parseDrawioEvent } from './embedMessages';
+import { DrawioSource, isExportingSource } from '../model/DrawioSource';
+import {
+  buildLoadMessage, buildConfigureMessage, buildExportMessage, parseDrawioEvent,
+} from './embedMessages';
 import { buildEmbedQuery } from '../constants';
 
 export interface DrawioEditorDeps {
@@ -35,6 +37,12 @@ export class DrawioEditor {
    * postMessage replies, which are dispatched on ITS parent window, not the
    * main app window. */
   private win: Window = window;
+  /** Export round-trip state for dual-format sources: save/autosave answers
+   * with an export request, and the export event does the actual persist.
+   * Overlapping requests are coalesced into one trailing re-request. */
+  private exportPending = false;
+  private exportQueued = false;
+  private exitAfterExport = false;
 
   constructor(
     private container: HTMLElement,
@@ -111,6 +119,13 @@ export class DrawioEditor {
       }
       case 'save':
       case 'autosave': {
+        if (isExportingSource(this.source)) {
+          // The event's xml alone can't be persisted (the file body is an
+          // image); ask the editor for a fresh export and save on its reply.
+          if (ev.event === 'save' && (ev as { exit?: boolean }).exit) this.exitAfterExport = true;
+          this.requestExport();
+          break;
+        }
         try {
           await this.source.write((ev as { xml: string }).xml);
         } catch (err) {
@@ -120,10 +135,36 @@ export class DrawioEditor {
         if (ev.event === 'save' && (ev as { exit?: boolean }).exit) this.options.onExit?.();
         break;
       }
+      case 'export': {
+        if (!isExportingSource(this.source)) break;
+        this.exportPending = false;
+        const again = this.exportQueued;
+        this.exportQueued = false;
+        try {
+          await this.source.writeExport((ev as { data: string }).data);
+        } catch (err) {
+          new Notice('Drawio: failed to save diagram');
+          console.error(err);
+        }
+        if (again) {
+          this.requestExport();
+        } else if (this.exitAfterExport) {
+          this.exitAfterExport = false;
+          this.options.onExit?.();
+        }
+        break;
+      }
       case 'exit':
         this.options.onExit?.();
         break;
     }
+  }
+
+  private requestExport(): void {
+    if (this.exportPending) { this.exportQueued = true; return; }
+    if (!isExportingSource(this.source)) return;
+    this.exportPending = true;
+    this.post(buildExportMessage(this.source.exportFormat()));
   }
 
   private post(message: string): void {

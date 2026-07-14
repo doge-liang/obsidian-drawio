@@ -1,7 +1,9 @@
-import { FileSystemAdapter, Notice, TFolder } from 'obsidian';
+import { FileSystemAdapter, Notice, TFile, TFolder } from 'obsidian';
 import { join } from 'node:path';
 import { ServerManager } from '../server/ServerManager';
 import { createNewDiagram } from '../file/createDiagram';
+import { DualFormatFileSource } from '../file/DualFormatFileSource';
+import { dualFormatOf } from '../model/dualFormat';
 import type DrawioPlugin from '../main';
 
 /**
@@ -36,15 +38,39 @@ export async function registerDesktopFeatures(plugin: DrawioPlugin): Promise<voi
     void createNewDiagram(plugin);
   });
 
-  // "New drawio diagram" on folder context menus, creating in that folder.
+  // "New drawio diagram" on folder context menus, creating in that folder;
+  // "Edit drawio diagram" on dual-format image files (which open in
+  // Obsidian's own image view, so they need an explicit editor entry).
   plugin.registerEvent(plugin.app.workspace.on('file-menu', (menu, file) => {
     if (file instanceof TFolder) {
       menu.addItem((item) => item
         .setTitle('New drawio diagram')
         .setIcon('workflow')
         .onClick(() => { void createNewDiagram(plugin, file); }));
+    } else if (file instanceof TFile) {
+      const format = dualFormatOf(file.path);
+      if (format) {
+        menu.addItem((item) => item
+          .setTitle('Edit drawio diagram')
+          .setIcon('workflow')
+          .onClick(() => {
+            plugin.openEditor(new DualFormatFileSource(plugin.app, file, format));
+          }));
+      }
     }
   }));
+
+  plugin.addCommand({
+    id: 'edit-dual-format-diagram',
+    name: 'Edit diagram in the current image file',
+    checkCallback: (checking) => {
+      const file = plugin.app.workspace.getActiveFile();
+      const format = file ? dualFormatOf(file.path) : null;
+      if (!file || !format) return false;
+      if (!checking) plugin.openEditor(new DualFormatFileSource(plugin.app, file, format));
+      return true;
+    },
+  });
 
   // Lifecycle detection: offline mode selected but the webapp isn't installed.
   // One notice per plugin load — the settings tab carries the actual installer.

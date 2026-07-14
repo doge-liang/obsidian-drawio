@@ -34,8 +34,11 @@ The editor needs one of: the offline editor installed (one click in settings, ~5
 | **Code block** | Add a `` ```drawio `` block in any note (start empty, or paste drawio XML) | Click the preview → full-screen modal |
 | **`.drawio` file** | Ribbon button / **Create new diagram** command / folder context menu | Editor embedded directly in the file's tab |
 | **Embed** | `![[your-diagram.drawio]]` in any note | Click the preview → quick-edit modal |
+| **`.drawio.svg` / `.drawio.png` file** | Same entry points, after setting **New diagram format** | Right-click the file → **Edit drawio diagram** |
 
-All three render as SVG previews in both editing and reading views, and every edit autosaves back to its source — the code block's XML or the `.drawio` file. Embeds re-render automatically when the underlying file changes.
+All render as previews in both editing and reading views, and every edit autosaves back to its source — the code block's XML or the diagram file. Embeds re-render automatically when the underlying file changes.
+
+**Dual-format files (`.drawio.svg` / `.drawio.png`):** the file *is* a standard SVG or PNG image with the diagram embedded inside — it displays as a plain image everywhere (GitHub, exports, other tools, Obsidian's own image view and embeds) while staying fully editable here. Set **New diagram format** in the settings to create them by default; edit via the file's context menu (**Edit drawio diagram**) or the **Edit diagram in the current image file** command. Each save re-exports the image part, keeping picture and diagram in sync. Same format as the VS Code drawio extension, so the files are interchangeable.
 
 ![The drawio editor embedded in a file tab](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/file-editor.png)
 
@@ -64,6 +67,7 @@ Phones and tablets behave identically: previews everywhere, no editing. Tapping 
 | **Editor source** | **Offline** (bundled webapp, default), **Online** (diagrams.net), or a **Custom URL**. Offline requires the one-time install below — there is no automatic fallback. |
 | **Custom drawio URL** | Used when Editor source is "Custom URL" (e.g. `https://embed.diagrams.net/`). |
 | **New diagram location** | Where the command and ribbon button create diagrams: vault root (default), the current note's folder, or a fixed folder (created if missing). The folder context menu always creates in the clicked folder. |
+| **New diagram format** | `.drawio` (plain XML, default), `.drawio.svg`, or `.drawio.png` — the latter two are standard images with the diagram embedded, viewable anywhere and editable here. |
 | **Open diagram files read-only** | Desktop: show a static preview instead of the embedded editor when opening `.drawio` files — for workflows centred on drawio-desktop. Applies to newly opened tabs. |
 | **Preview click action** | Desktop: what clicking a preview does — open the built-in editor (default), open the file in the system default app, or nothing. Code blocks always use the built-in editor (they have no file). |
 | **Preview alignment** | Center (default) or left-align rendered previews. |

@@ -47,6 +47,7 @@ describe('DEFAULT_SETTINGS', () => {
         'drawioMode',
         'followObsidianTheme',
         'newDiagramFolder',
+        'newDiagramFormat',
         'newDiagramLocation',
         'previewAlignment',
         'previewClickAction',

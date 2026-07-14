@@ -2,7 +2,9 @@ import { App, ButtonComponent, Platform, PluginSettingTab, Setting } from 'obsid
 import type DrawioPlugin from './main';
 import { DRAWIO_VERSION } from './constants';
 import { formatInstallProgress, type WebappInstallState } from './model/installStatus';
-import type { DrawioMode, NewDiagramLocation, PreviewAlignment, PreviewClickAction } from './settings';
+import type {
+  DrawioMode, NewDiagramFormat, NewDiagramLocation, PreviewAlignment, PreviewClickAction,
+} from './settings';
 
 /**
  * Settings tab, rendered with the classic imperative `display()` API.
@@ -75,6 +77,20 @@ export class DrawioSettingTab extends PluginSettingTab {
           .addOption('folder', 'Folder specified below')
           .setValue(s.newDiagramLocation)
           .onChange((v) => { s.newDiagramLocation = v as NewDiagramLocation; save(); this.display(); }));
+
+      new Setting(containerEl)
+        .setName('New diagram format')
+        .setDesc(
+          '.drawio stores plain XML. .drawio.svg and .drawio.png are standard images with the ' +
+          'diagram embedded — they display as images everywhere and stay editable here ' +
+          '(right-click the file and choose "Edit drawio diagram").',
+        )
+        .addDropdown((d) => d
+          .addOption('drawio', '.drawio')
+          .addOption('svg', '.drawio.svg')
+          .addOption('png', '.drawio.png')
+          .setValue(s.newDiagramFormat)
+          .onChange((v) => { s.newDiagramFormat = v as NewDiagramFormat; save(); }));
 
       // Target folder, only relevant when the location is a fixed folder.
       if (s.newDiagramLocation === 'folder') {
