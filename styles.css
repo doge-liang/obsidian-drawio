@@ -58,6 +58,20 @@ body.drawio-align-left .drawio-preview svg { margin: 0; }
 .drawio-modal .modal-content { height: 100%; padding: 0; }
 .drawio-iframe { width: 100%; height: 100%; border: none; display: block; }
 
+/* ---- Headless export (HeadlessExporter) ---- */
+/* Off-screen host for the one-shot export iframe: kept rendered — not
+   display:none — so drawio can lay out and rasterize, but never visible or
+   interactive. */
+.drawio-headless-exporter {
+  position: fixed;
+  top: -10000px;
+  left: -10000px;
+  width: 800px;
+  height: 600px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 /* ---- Inline editor in the tab (.drawio files, Excalidraw-style) ---- */
 .drawio-file-view { height: 100%; padding: 0; }
 .drawio-file-view .drawio-iframe { width: 100%; height: 100%; }

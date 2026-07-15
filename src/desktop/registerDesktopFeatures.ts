@@ -4,6 +4,7 @@ import { ServerManager } from '../server/ServerManager';
 import { createNewDiagram } from '../file/createDiagram';
 import { DualFormatFileSource } from '../file/DualFormatFileSource';
 import { dualFormatOf } from '../model/dualFormat';
+import { exportDiagramToFile, isExportableDiagram } from './exportDiagram';
 import type DrawioPlugin from '../main';
 
 /**
@@ -40,7 +41,8 @@ export async function registerDesktopFeatures(plugin: DrawioPlugin): Promise<voi
 
   // "New drawio diagram" on folder context menus, creating in that folder;
   // "Edit drawio diagram" on dual-format image files (which open in
-  // Obsidian's own image view, so they need an explicit editor entry).
+  // Obsidian's own image view, so they need an explicit editor entry);
+  // "Export diagram as SVG/PNG" on every diagram file.
   plugin.registerEvent(plugin.app.workspace.on('file-menu', (menu, file) => {
     if (file instanceof TFolder) {
       menu.addItem((item) => item
@@ -57,6 +59,14 @@ export async function registerDesktopFeatures(plugin: DrawioPlugin): Promise<voi
             plugin.openEditor(new DualFormatFileSource(plugin.app, file, format));
           }));
       }
+      if (isExportableDiagram(file)) {
+        for (const target of ['svg', 'png'] as const) {
+          menu.addItem((item) => item
+            .setTitle(`Export diagram as ${target.toUpperCase()}`)
+            .setIcon('download')
+            .onClick(() => { void exportDiagramToFile(plugin, file, target); }));
+        }
+      }
     }
   }));
 
@@ -71,6 +81,21 @@ export async function registerDesktopFeatures(plugin: DrawioPlugin): Promise<voi
       return true;
     },
   });
+
+  // Plain-image export of the active diagram file (.drawio or dual-format):
+  // a standalone .svg/.png — no embedded diagram data — next to the source.
+  for (const format of ['svg', 'png'] as const) {
+    plugin.addCommand({
+      id: `export-diagram-${format}`,
+      name: `Export diagram as ${format.toUpperCase()}`,
+      checkCallback: (checking) => {
+        const file = plugin.app.workspace.getActiveFile();
+        if (!file || !isExportableDiagram(file)) return false;
+        if (!checking) void exportDiagramToFile(plugin, file, format);
+        return true;
+      },
+    });
+  }
 
   // Lifecycle detection: offline mode selected but the webapp isn't installed.
   // One notice per plugin load — the settings tab carries the actual installer.

@@ -1,5 +1,6 @@
 import { locateDrawioBlockAtLine } from '../codeblock/locateBlock';
 import { EMPTY_DIAGRAM } from '../constants';
+import { uniquePath } from './uniquePath';
 
 /** 0-based editor position, structurally compatible with Obsidian's EditorPosition. */
 export interface Pos { line: number; ch: number }
@@ -54,11 +55,7 @@ export function uniqueDiagramPath(
   noteBasename: string,
   exists: (path: string) => boolean,
 ): string {
-  const prefix = (folder ? `${folder}/` : '') + `${noteBasename} diagram`;
-  for (let n = 1; ; n++) {
-    const path = `${prefix}${n === 1 ? '' : ` ${n}`}.drawio`;
-    if (!exists(path)) return path;
-  }
+  return uniquePath((folder ? `${folder}/` : '') + `${noteBasename} diagram`, '.drawio', exists);
 }
 
 // --------------------------------------------------------------------------
