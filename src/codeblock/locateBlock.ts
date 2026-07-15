@@ -24,3 +24,24 @@ export function locateDrawioBlock(lines: string[], expectedBody: string): BlockR
   }
   return null;
 }
+
+/**
+ * Find the fenced ```drawio block that contains `line`, counting the opening
+ * and closing fence lines as inside. Same fence grammar and scan order as
+ * `locateDrawioBlock` above (single source of truth for fence parsing).
+ * Returns null when the line is outside every block, or when the block the
+ * line sits in is unterminated.
+ */
+export function locateDrawioBlockAtLine(lines: string[], line: number): BlockRange | null {
+  for (let i = 0; i < lines.length; i++) {
+    if (!OPEN_RE.test(lines[i] ?? '')) continue;
+    for (let j = i + 1; j < lines.length; j++) {
+      if (CLOSE_RE.test(lines[j] ?? '')) {
+        if (line >= i && line <= j) return { start: i, end: j };
+        i = j; // resume scanning after this block
+        break;
+      }
+    }
+  }
+  return null;
+}

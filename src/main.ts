@@ -1,6 +1,11 @@
-import { Plugin, FileSystemAdapter, Platform } from 'obsidian';
+import { Plugin, FileSystemAdapter, MarkdownView, Notice, Platform } from 'obsidian';
 import { OfflineEditorNotInstalledError } from './model/errors';
 import { InstallStatus } from './model/installStatus';
+import {
+  findBlockExtraction, findEmbedConversion,
+  uniqueDiagramPath, buildBlockReplacementText,
+} from './model/blockFileConvert';
+import type { BlockExtraction, EmbedConversion } from './model/blockFileConvert';
 import { DrawioSettings, DEFAULT_SETTINGS } from './settings';
 import type { ServerManager } from './server/ServerManager';
 import { DrawioModal } from './editor/DrawioModal';
@@ -50,6 +55,10 @@ export default class DrawioPlugin extends Plugin {
         'drawio-align-left', this.settings.previewAlignment === 'left');
     }));
     this.register(() => setPreviewAlignmentClass(this, false));
+
+    // Platform-independent (pure text edits + Vault operations), so these are
+    // registered here rather than with the desktop-only features.
+    registerConvertCommands(this);
 
     await maybeRegisterDesktopFeatures(this);
 
@@ -179,6 +188,103 @@ export function setPreviewAlignmentClass(plugin: DrawioPlugin, left: boolean): v
     bodies.add(leaf.view.containerEl.ownerDocument.body);
   });
   for (const body of bodies) body.classList.toggle('drawio-align-left', left);
+}
+
+/** Register the two code-block ↔ .drawio-file conversion commands. Both are
+ * check-callbacks: available only in a Markdown editor whose cursor sits in a
+ * ```drawio block (extract) / on a line with a `![[….drawio]]` embed
+ * (convert). All range math lives in model/blockFileConvert.ts (pure,
+ * unit-tested); this layer only touches the editor and the vault. Exported
+ * standalone so the wiring is unit-testable without a full Plugin instance. */
+export function registerConvertCommands(plugin: DrawioPlugin): void {
+  plugin.addCommand({
+    id: 'extract-code-block-to-file',
+    name: 'Extract diagram code block to file',
+    checkCallback: (checking) => {
+      const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+      if (!view?.file) return false;
+      const plan = findBlockExtraction(view.editor.getValue(), view.editor.getCursor().line);
+      if (!plan) return false;
+      if (!checking) void extractBlockToFile(plugin, view, plan);
+      return true;
+    },
+  });
+
+  plugin.addCommand({
+    id: 'inline-embed-to-code-block',
+    name: 'Convert diagram embed to code block',
+    checkCallback: (checking) => {
+      const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+      if (!view?.file) return false;
+      const conv = findEmbedConversion(view.editor.getValue(), view.editor.getCursor().line);
+      if (!conv) return false;
+      if (!checking) void embedToCodeBlock(plugin, view, conv);
+      return true;
+    },
+  });
+}
+
+/** Create `<note basename> diagram[ N].drawio` next to the note from the
+ * block's XML, then replace the whole fenced block with an embed of it. */
+async function extractBlockToFile(
+  plugin: DrawioPlugin, view: MarkdownView, plan: BlockExtraction,
+): Promise<void> {
+  const noteFile = view.file;
+  if (!noteFile) return;
+  try {
+    const vault = plugin.app.vault;
+    // Root files report parent path '/', which must not prefix the new path.
+    const parent = noteFile.parent?.path ?? '';
+    const folder = parent === '/' ? '' : parent;
+    const path = uniqueDiagramPath(folder, noteFile.basename,
+      (p) => vault.getAbstractFileByPath(p) !== null);
+    const created = await vault.create(path, plan.fileContent);
+    // Honors the user's link preferences; prepend the embed `!` if absent.
+    const link = plugin.app.fileManager.generateMarkdownLink(created, noteFile.path);
+    const embed = link.startsWith('!') ? link : `!${link}`;
+    // The note may have shifted during the awaited create — re-locate the
+    // block at the planned line and verify it is still the same one before
+    // replacing. On mismatch the created file is kept (harmless), only the
+    // text edit is skipped.
+    const editor = view.editor;
+    const fresh = findBlockExtraction(editor.getValue(), plan.range.from.line);
+    if (!fresh || fresh.body !== plan.body) {
+      new Notice(`Drawio: the note changed — "${created.path}" was created, ` +
+        'but the code block was not replaced.');
+      return;
+    }
+    editor.replaceRange(embed, fresh.range.from, fresh.range.to);
+  } catch (err) {
+    new Notice(`Drawio: could not extract the diagram — ${String(err)}`);
+  }
+}
+
+/** Replace a `![[….drawio]]` embed with a ```drawio block holding the file's
+ * XML. Any `#page` / `|alias` parts are dropped; the file itself is kept. */
+async function embedToCodeBlock(
+  plugin: DrawioPlugin, view: MarkdownView, conv: EmbedConversion,
+): Promise<void> {
+  const noteFile = view.file;
+  if (!noteFile) return;
+  const target = plugin.app.metadataCache.getFirstLinkpathDest(conv.linkpath, noteFile.path);
+  if (!target) {
+    new Notice(`Drawio: cannot find "${conv.linkpath}" in this vault.`);
+    return;
+  }
+  try {
+    const xml = await plugin.app.vault.read(target);
+    // Same drift guard as extractBlockToFile: only replace if the line still
+    // holds the same embed after the awaited read.
+    const editor = view.editor;
+    const fresh = findEmbedConversion(editor.getValue(), conv.range.from.line);
+    if (!fresh || fresh.linkpath !== conv.linkpath) {
+      new Notice('Drawio: the note changed — the embed was not converted.');
+      return;
+    }
+    editor.replaceRange(buildBlockReplacementText(xml, fresh), fresh.range.from, fresh.range.to);
+  } catch (err) {
+    new Notice(`Drawio: could not convert the embed — ${String(err)}`);
+  }
 }
 
 /** Dynamically load and run desktop-only registration (local server, ribbon,

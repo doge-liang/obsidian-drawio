@@ -30,6 +30,10 @@ export class TextFileView {
   requestSave(): void {}
 }
 
+export class MarkdownView extends TextFileView {
+  editor: unknown;
+}
+
 export class FileSystemAdapter {
   getBasePath(): string { return ''; }
 }
