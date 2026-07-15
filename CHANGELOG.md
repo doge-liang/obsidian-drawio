@@ -8,6 +8,16 @@ The release workflow publishes the tagged version's section below as the GitHub
 release notes, so a version's section must be complete before its tag is pushed
 (see the Release process section of CLAUDE.md).
 
+## 0.5.3 - 2026-07-15
+
+### Added
+
+- **Export diagrams as plain images**: the **Export diagram as SVG** and
+  **Export diagram as PNG** commands (also in the file context menu) render
+  the current diagram to a standalone image file next to the source — for
+  publishing anywhere drawio isn't available. Desktop only; works for
+  `.drawio` files and for `.drawio.svg` / `.drawio.png` files.
+
 ## 0.5.2 - 2026-07-15
 
 ### Changed — action may be required
