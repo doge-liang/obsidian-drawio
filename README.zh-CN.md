@@ -46,6 +46,8 @@
 
 **代码块与文件互转：** 命令面板提供两个命令，在图表的两种存放形式之间切换（移动端同样可用）。**Extract diagram code block to file** —— 光标位于 `` ```drawio `` 代码块内时 —— 会把块内 XML 移入笔记同文件夹下新建的 `<笔记名> diagram.drawio` 文件（重名时依次编号 `2`、`3`……），并把代码块替换为嵌入。**Convert diagram embed to code block** —— 光标所在行含 `![[….drawio]]` 嵌入时 —— 会把嵌入替换为包含该文件 XML 的 `` ```drawio `` 代码块；文件本身保留，链接上的 `#Page-…` 或 `|别名` 部分会被丢弃。
 
+**导出为普通图片（桌面端）：** **Export diagram as SVG** 与 **Export diagram as PNG** 命令 —— 也出现在 `.drawio` 及 `.drawio.svg`/`.drawio.png` 文件的右键菜单中 —— 会把图表导出为不含内嵌图表数据的普通 `.svg`/`.png` 图片，写入源文件所在文件夹（重名时依次编号 `2`、`3`……）。
+
 ### 平台支持
 
 | 功能 | 桌面 | 平板 | 手机 |

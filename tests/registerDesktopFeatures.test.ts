@@ -5,7 +5,7 @@ vi.mock('obsidian', async (importOriginal) => {
   return { ...orig, Notice: vi.fn() };
 });
 
-import { FileSystemAdapter, Notice } from 'obsidian';
+import { FileSystemAdapter, Notice, TFile } from 'obsidian';
 import { registerDesktopFeatures } from '../src/desktop/registerDesktopFeatures';
 import type DrawioPlugin from '../src/main';
 
@@ -13,12 +13,24 @@ class FakeAdapter extends FileSystemAdapter {
   getBasePath(): string { return '/vault'; }
 }
 
+function tfile(path: string): TFile {
+  const f = new TFile();
+  f.path = path;
+  const name = path.split('/').pop() ?? path;
+  const dot = name.lastIndexOf('.');
+  f.extension = dot < 0 ? '' : name.slice(dot + 1);
+  f.basename = dot < 0 ? name : name.slice(0, dot);
+  return f;
+}
+
 function fakePlugin() {
-  const workspaceOn = vi.fn(() => ({}));
+  const workspaceOn = vi.fn(
+    (_name: string, _cb: (menu: unknown, file: unknown) => unknown) => ({}));
+  const getActiveFile = vi.fn<() => TFile | null>(() => null);
   const raw = {
     app: {
       vault: { adapter: new FakeAdapter() },
-      workspace: { on: workspaceOn },
+      workspace: { on: workspaceOn, getActiveFile },
     },
     manifest: { dir: 'drawio-editor' },
     settings: {
@@ -32,7 +44,33 @@ function fakePlugin() {
     registerEvent: vi.fn(),
     isWebappInstalled: vi.fn(async () => true),
   };
-  return { plugin: raw as unknown as DrawioPlugin, raw, workspaceOn };
+  return { plugin: raw as unknown as DrawioPlugin, raw, workspaceOn, getActiveFile };
+}
+
+interface RegisteredCommand {
+  id: string;
+  name: string;
+  checkCallback?: (checking: boolean) => boolean;
+}
+
+function registeredCommand(raw: { addCommand: ReturnType<typeof vi.fn> }, id: string) {
+  const cmd = raw.addCommand.mock.calls
+    .map((c) => c[0] as RegisteredCommand)
+    .find((c) => c.id === id);
+  expect(cmd).toBeDefined();
+  return cmd!;
+}
+
+/** Menu double: records item titles, ignores icons/clicks. */
+function fakeMenu() {
+  const titles: string[] = [];
+  const item = {
+    setTitle(t: string) { titles.push(t); return item; },
+    setIcon() { return item; },
+    onClick() { return item; },
+  };
+  const menu = { addItem: (cb: (i: typeof item) => unknown) => { cb(item); return menu; } };
+  return { menu, titles };
 }
 
 describe('registerDesktopFeatures', () => {
@@ -66,6 +104,51 @@ describe('registerDesktopFeatures', () => {
     await registerDesktopFeatures(plugin);
     expect(raw.registerEvent).toHaveBeenCalledTimes(1);
     expect(workspaceOn).toHaveBeenCalledWith('file-menu', expect.any(Function));
+  });
+
+  it('registers the two export commands', async () => {
+    const { plugin, raw } = fakePlugin();
+    await registerDesktopFeatures(plugin);
+    expect(raw.addCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'export-diagram-svg', name: 'Export diagram as SVG' }),
+    );
+    expect(raw.addCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'export-diagram-png', name: 'Export diagram as PNG' }),
+    );
+  });
+
+  it('export commands are available only when the active file is a diagram', async () => {
+    const { plugin, raw, getActiveFile } = fakePlugin();
+    await registerDesktopFeatures(plugin);
+    const check = registeredCommand(raw, 'export-diagram-svg').checkCallback!;
+
+    expect(check(true)).toBe(false); // no active file
+    getActiveFile.mockReturnValue(tfile('note.md'));
+    expect(check(true)).toBe(false);
+    getActiveFile.mockReturnValue(tfile('d/a.drawio'));
+    expect(check(true)).toBe(true);
+    getActiveFile.mockReturnValue(tfile('d/a.drawio.png'));
+    expect(check(true)).toBe(true);
+  });
+
+  it('file-menu offers both export items on diagram files, none on others', async () => {
+    const { plugin, workspaceOn } = fakePlugin();
+    await registerDesktopFeatures(plugin);
+    const handler = workspaceOn.mock.calls
+      .find((c) => c[0] === 'file-menu')![1] as (menu: unknown, file: unknown) => void;
+
+    const drawio = fakeMenu();
+    handler(drawio.menu, tfile('a.drawio'));
+    expect(drawio.titles).toEqual(['Export diagram as SVG', 'Export diagram as PNG']);
+
+    const dual = fakeMenu();
+    handler(dual.menu, tfile('a.drawio.svg'));
+    expect(dual.titles).toEqual(
+      ['Edit drawio diagram', 'Export diagram as SVG', 'Export diagram as PNG']);
+
+    const other = fakeMenu();
+    handler(other.menu, tfile('note.md'));
+    expect(other.titles).toEqual([]);
   });
 
   it('throws if the vault adapter is not a FileSystemAdapter', async () => {

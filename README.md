@@ -46,6 +46,8 @@ All render as previews in both editing and reading views, and every edit autosav
 
 **Converting between code blocks and files:** two palette commands switch a diagram between its two source forms (they work on mobile too). **Extract diagram code block to file** — with the cursor inside a `` ```drawio `` block — moves the block's XML into a new `<note name> diagram.drawio` file next to the note (numbered `2`, `3`, … if that name is taken) and replaces the block with an embed. **Convert diagram embed to code block** — with the cursor on a line containing a `![[….drawio]]` embed — replaces the embed with a `` ```drawio `` block holding the file's XML; the file itself is kept, and any `#Page-…` or `|alias` part of the link is dropped.
 
+**Exporting plain images (desktop):** the **Export diagram as SVG** and **Export diagram as PNG** commands — also on the context menu of `.drawio` and `.drawio.svg`/`.drawio.png` files — write a plain `.svg`/`.png` image of the diagram (without the embedded diagram data) next to the source file, numbered `2`, `3`, … if the name is taken.
+
 ### Platform support
 
 | Feature | Desktop | Tablet | Phone |
