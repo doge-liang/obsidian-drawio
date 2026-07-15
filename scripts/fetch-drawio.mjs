@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
 
-const DRAWIO_VERSION = 'v30.0.4';
+const DRAWIO_VERSION = 'v30.3.11';
 const WAR_URL = `https://github.com/jgraph/drawio/releases/download/${DRAWIO_VERSION}/draw.war`;
 const OUT_DIR = join(process.cwd(), 'webapp');
 

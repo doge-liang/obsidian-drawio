@@ -90,7 +90,7 @@ Building from source also works and produces the same layout: run `npm run fetch
 ## Notes & limitations
 
 - **Editing is desktop-only** — it needs the iframe-based drawio editor and, in Offline mode, a local HTTP server. Mobile gets previews (see [Platform support](#platform-support)).
-- **Bundle size**: `main.js` is ~2.4 MB because drawio's viewer (~2.3 MB) is inlined for offline previews. This is expected.
+- **Bundle size**: `main.js` is ~2.5 MB because drawio's viewer (~2.4 MB) is inlined for offline previews. This is expected.
 - **Security**: rendered SVG previews are sanitized before insertion — script/embedding elements, inline event handlers, script-bearing URL schemes, external `<use>` references, SMIL injection, and dangerous CSS are removed, while drawio's `foreignObject` text labels are preserved. The bundled viewer runs without injecting any `<script>` element, and its one external-script loader (an unused MathJax-from-CDN helper) is stripped at build time, so previews fetch and execute no external code. In Offline mode the local server binds to `127.0.0.1` only and serves solely the bundled `webapp/` directory.
 
 ## Development
