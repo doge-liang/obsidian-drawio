@@ -18,6 +18,20 @@ release notes, so a version's section must be complete before its tag is pushed
   editor, open **Settings → Drawio** and click **Update** to bring the editor
   to the same version; until then it keeps working on the previous one.
 
+### Added
+
+- **Dual-format diagram files (`.drawio.svg` / `.drawio.png`)**: the file is a
+  standard SVG or PNG image with the diagram embedded — it displays as a plain
+  image everywhere (GitHub, other tools, Obsidian's own image view and embeds)
+  while staying fully editable here. Choose **New diagram format** in the
+  settings to create them; edit via the file's context menu (**Edit drawio
+  diagram**) or the **Edit diagram in the current image file** command. Same
+  format as the VS Code drawio extension, so the files are interchangeable.
+- **Convert between code blocks and files**: the **Extract diagram code block
+  to file** command turns the code block under the cursor into a `.drawio`
+  file and replaces the block with an embed; **Convert diagram embed to code
+  block** does the reverse.
+
 ## 0.5.1 - 2026-07-12
 
 ### Added
