@@ -11,7 +11,7 @@ export function buildLoadMessage(xml: string, opts: { dark: boolean }): string {
   return JSON.stringify({ action: 'load', xml, autosave: 1, modified: 0, dark: opts.dark });
 }
 
-export function buildExportMessage(format: 'svg' | 'png' | 'xmlpng'): string {
+export function buildExportMessage(format: 'svg' | 'png' | 'xmlsvg' | 'xmlpng'): string {
   return JSON.stringify({ action: 'export', format });
 }
 

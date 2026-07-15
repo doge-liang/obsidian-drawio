@@ -1,7 +1,9 @@
-import { Notice, TFolder } from 'obsidian';
+import { Notice, TFile, TFolder } from 'obsidian';
 import type DrawioPlugin from '../main';
 import type { DrawioSettings } from '../settings';
 import { EMPTY_DIAGRAM } from '../constants';
+import { buildInitialPng, buildInitialSvg } from '../model/dualFormat';
+import { DualFormatFileSource } from './DualFormatFileSource';
 
 /** Normalize a vault folder path: forward slashes, no empty/leading/trailing segments. */
 function normalizeFolderPath(path: string): string {
@@ -54,10 +56,28 @@ export async function createNewDiagram(plugin: DrawioPlugin, folderOverride?: TF
       folder = resolveNewDiagramFolder(plugin.settings, parent);
       if (!(await ensureFolderExists(plugin, folder))) return;
     }
-    const name = `Untitled Diagram ${Date.now()}.drawio`;
-    const file = await plugin.app.vault.create(folder ? `${folder}/${name}` : name, EMPTY_DIAGRAM);
-    const leaf = plugin.app.workspace.getLeaf(true);
-    await leaf.openFile(file);
+    const format = plugin.settings.newDiagramFormat;
+    const ext = format === 'drawio' ? '.drawio' : `.drawio.${format}`;
+    const path = `${folder ? `${folder}/` : ''}Untitled Diagram ${Date.now()}${ext}`;
+    let file: TFile;
+    if (format === 'png') {
+      const bytes = buildInitialPng(EMPTY_DIAGRAM);
+      const buf = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(buf).set(bytes);
+      file = await plugin.app.vault.createBinary(path, buf);
+    } else {
+      const body = format === 'svg' ? buildInitialSvg(EMPTY_DIAGRAM) : EMPTY_DIAGRAM;
+      file = await plugin.app.vault.create(path, body);
+    }
+    if (format === 'drawio') {
+      // Our registered file view carries the editor inline.
+      const leaf = plugin.app.workspace.getLeaf(true);
+      await leaf.openFile(file);
+    } else {
+      // Dual-format files open in Obsidian's own image view, so go straight
+      // to the modal editor instead; the image body fills in on first save.
+      plugin.openEditor(new DualFormatFileSource(plugin.app, file, format));
+    }
   } catch (err) {
     new Notice(`Drawio: could not create diagram — ${String(err)}`);
   }

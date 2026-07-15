@@ -34,8 +34,11 @@
 | **代码块** | 在任意笔记中添加 `` ```drawio `` 代码块（可留空，或粘贴 drawio XML） | 点击预览 → 全屏模态框 |
 | **`.drawio` 文件** | 侧边栏按钮 / **Create new diagram** 命令 / 文件夹右键菜单 | 编辑器直接嵌入文件的标签页 |
 | **嵌入** | 在任意笔记中写 `![[your-diagram.drawio]]` | 点击预览 → 快速编辑模态框 |
+| **`.drawio.svg` / `.drawio.png` 文件** | 同样的入口，先设置 **New diagram format** | 右键文件 → **Edit drawio diagram** |
 
-三者都在编辑视图和阅读视图中渲染为 SVG 预览，每次编辑都会自动保存回其源头 —— 代码块的 XML 或 `.drawio` 文件。当底层文件变化时，嵌入会自动重新渲染。
+以上载体都在编辑视图和阅读视图中渲染为预览，每次编辑都会自动保存回其源头 —— 代码块的 XML 或图表文件。当底层文件变化时，嵌入会自动重新渲染。
+
+**双格式文件（`.drawio.svg` / `.drawio.png`）**：文件本体*就是*标准的 SVG 或 PNG 图片，图表数据内嵌其中 —— 它在任何地方（GitHub、导出物、其他工具、Obsidian 自身的图片视图与嵌入）都显示为普通图片，同时在这里保持完全可编辑。在设置中选择 **New diagram format** 即可默认创建这类文件；通过文件右键菜单（**Edit drawio diagram**）或 **Edit diagram in the current image file** 命令编辑。每次保存都会重新导出图片部分，使图像与图表保持同步。与 VS Code drawio 扩展格式相同，文件可互换使用。
 
 ![嵌入文件标签页中的 drawio 编辑器](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/file-editor.png)
 
@@ -64,6 +67,7 @@
 | **Editor source**（编辑器来源） | **Offline**（打包 webapp，默认）、**Online**（diagrams.net），或 **Custom URL**（自定义 URL）。Offline 需要完成下文的一次性安装 —— 没有自动回退。 |
 | **Custom drawio URL**（自定义 drawio URL） | 当 Editor source 为 “Custom URL” 时使用（例如 `https://embed.diagrams.net/`）。 |
 | **New diagram location**（新图表位置） | 命令和侧边栏按钮创建图表的位置：库根目录（默认）、当前笔记所在文件夹，或固定文件夹（不存在则创建）。文件夹右键菜单始终在被点击的文件夹中创建。 |
+| **New diagram format**（新图表格式） | `.drawio`（纯 XML，默认）、`.drawio.svg` 或 `.drawio.png` —— 后两者是内嵌图表数据的标准图片，随处可看，在此可编辑。 |
 | **Open diagram files read-only**（以只读方式打开图表文件） | 桌面端：打开 `.drawio` 文件时显示静态预览而非内嵌编辑器 —— 适用于以 drawio-desktop 为中心的工作流。对新打开的标签页生效。 |
 | **Preview click action**（预览点击行为） | 桌面端：点击预览的行为 —— 打开内置编辑器（默认）、用系统默认应用打开文件，或什么都不做。代码块始终使用内置编辑器（它们没有对应文件）。 |
 | **Preview alignment**（预览对齐） | 渲染的预览居中（默认）或左对齐。 |

@@ -1,6 +1,8 @@
 import { Notice } from 'obsidian';
-import { DrawioSource } from '../model/DrawioSource';
-import { buildLoadMessage, buildConfigureMessage, parseDrawioEvent } from './embedMessages';
+import { DrawioSource, isExportingSource } from '../model/DrawioSource';
+import {
+  buildLoadMessage, buildConfigureMessage, buildExportMessage, parseDrawioEvent,
+} from './embedMessages';
 import { buildEmbedQuery } from '../constants';
 
 export interface DrawioEditorDeps {
@@ -16,7 +18,12 @@ export interface DrawioEditorDeps {
 export interface DrawioEditorOptions {
   /** Called when drawio emits an `exit` event (e.g. user clicks the editor's close). */
   onExit?: () => void;
+  /** How long to wait for drawio's export reply before falling back to an
+   * XML-only write (tests shrink this; defaults to 15 s). */
+  exportTimeoutMs?: number;
 }
+
+const DEFAULT_EXPORT_TIMEOUT_MS = 15_000;
 
 /**
  * Reusable drawio editor surface: an <iframe> loading the drawio webapp in embed
@@ -35,6 +42,17 @@ export class DrawioEditor {
    * postMessage replies, which are dispatched on ITS parent window, not the
    * main app window. */
   private win: Window = window;
+  /** Export round-trip state for dual-format sources: save/autosave answers
+   * with an export request, and the export event does the actual persist.
+   * Overlapping requests are coalesced into one trailing re-request. The XML
+   * from the latest save/autosave event is kept so that a torn-down or
+   * unanswered export can still fall back to an XML-only write — the diagram
+   * data must never be lost, even if the image part goes stale. */
+  private exportPending = false;
+  private exportQueued = false;
+  private exitAfterExport = false;
+  private lastXml: string | null = null;
+  private exportTimer: number | null = null;
 
   constructor(
     private container: HTMLElement,
@@ -111,6 +129,15 @@ export class DrawioEditor {
       }
       case 'save':
       case 'autosave': {
+        if (isExportingSource(this.source)) {
+          // The event's xml alone can't be persisted as-is (the file body is
+          // an image); ask the editor for a fresh export and save on its
+          // reply. Keep the xml for the fallback paths.
+          this.lastXml = (ev as { xml: string }).xml;
+          if (ev.event === 'save' && (ev as { exit?: boolean }).exit) this.exitAfterExport = true;
+          this.requestExport();
+          break;
+        }
         try {
           await this.source.write((ev as { xml: string }).xml);
         } catch (err) {
@@ -120,10 +147,65 @@ export class DrawioEditor {
         if (ev.event === 'save' && (ev as { exit?: boolean }).exit) this.options.onExit?.();
         break;
       }
+      case 'export': {
+        if (!isExportingSource(this.source)) break;
+        this.clearExportTimer();
+        this.exportPending = false;
+        const again = this.exportQueued;
+        this.exportQueued = false;
+        try {
+          await this.source.writeExport((ev as { data: string }).data);
+        } catch (err) {
+          new Notice('Drawio: failed to save diagram');
+          console.error(err);
+        }
+        if (again) {
+          this.requestExport();
+        } else if (this.exitAfterExport) {
+          this.exitAfterExport = false;
+          this.options.onExit?.();
+        }
+        break;
+      }
       case 'exit':
         this.options.onExit?.();
         break;
     }
+  }
+
+  private requestExport(): void {
+    if (this.exportPending) { this.exportQueued = true; return; }
+    if (!isExportingSource(this.source)) return;
+    this.exportPending = true;
+    this.clearExportTimer();
+    this.exportTimer = window.setTimeout(() => { void this.onExportTimeout(); },
+      this.options.exportTimeoutMs ?? DEFAULT_EXPORT_TIMEOUT_MS);
+    this.post(buildExportMessage(this.source.exportFormat()));
+  }
+
+  private clearExportTimer(): void {
+    if (this.exportTimer !== null) { window.clearTimeout(this.exportTimer); this.exportTimer = null; }
+  }
+
+  /** drawio never answered the export request: fall back to writing the XML
+   * alone (the image part stays stale until the next successful save), so the
+   * user's data survives and a pending save-and-exit doesn't hang forever. */
+  private async onExportTimeout(): Promise<void> {
+    if (this.destroyed || !this.exportPending) return;
+    this.exportTimer = null;
+    this.exportPending = false;
+    this.exportQueued = false;
+    const exit = this.exitAfterExport;
+    this.exitAfterExport = false;
+    try {
+      if (this.lastXml !== null) await this.source.write(this.lastXml);
+      new Notice('Drawio: the editor did not return an export — the diagram data was saved, ' +
+        'but the image may be outdated until the next save.');
+    } catch (err) {
+      new Notice('Drawio: failed to save diagram');
+      console.error(err);
+    }
+    if (exit) this.options.onExit?.();
   }
 
   private post(message: string): void {
@@ -159,6 +241,19 @@ export class DrawioEditor {
 
   destroy(): void {
     this.destroyed = true;
+    this.clearExportTimer();
+    // Torn down while an export round-trip is in flight (e.g. the modal
+    // closed right after an autosave): the reply will never arrive, so
+    // persist the last known XML now. The vault write survives the teardown;
+    // only the image part stays stale until the next editor save.
+    if ((this.exportPending || this.exportQueued) && this.lastXml !== null) {
+      this.source.write(this.lastXml).catch((err) => {
+        new Notice('Drawio: failed to save diagram');
+        console.error(err);
+      });
+      this.exportPending = false;
+      this.exportQueued = false;
+    }
     if (this.onMessage) this.win.removeEventListener('message', this.onMessage);
     this.onMessage = null;
     this.iframe = null;
