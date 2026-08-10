@@ -65,9 +65,15 @@ export class PluginSettingTab {
   }
 }
 
-class DropdownComponent {
-  addOption(_value: string, _label: string): this { return this; }
-  setValue(_value: string): this { return this; }
+export class DropdownComponent {
+  selectEl = document.createElement('select');
+  constructor(containerEl?: HTMLElement) { containerEl?.appendChild(this.selectEl); }
+  addOption(value: string, label: string): this {
+    this.selectEl.appendChild(new Option(label, value));
+    return this;
+  }
+  setValue(value: string): this { this.selectEl.value = value; return this; }
+  setDisabled(disabled: boolean): this { this.selectEl.disabled = disabled; return this; }
   onChange(_cb: (value: string) => void): this { return this; }
 }
 
@@ -112,7 +118,11 @@ export class Setting {
   }
   setName(name: string): this { this.nameEl.textContent = name; return this; }
   setDesc(desc: string): this { this.descEl.textContent = desc; return this; }
-  addDropdown(cb: (d: DropdownComponent) => unknown): this { cb(new DropdownComponent()); return this; }
+  addDropdown(cb: (d: DropdownComponent) => unknown): this {
+    const dropdown = new DropdownComponent(this.settingEl);
+    cb(dropdown);
+    return this;
+  }
   addToggle(cb: (t: ToggleComponent) => unknown): this { cb(new ToggleComponent()); return this; }
   addText(cb: (t: TextComponent) => unknown): this { cb(new TextComponent()); return this; }
   addButton(cb: (b: ButtonComponent) => unknown): this {

@@ -19,7 +19,10 @@ type Creator = (
   subpath?: string,
 ) => { loadFile: () => Promise<void> };
 
-type PostProcessor = (el: HTMLElement, ctx: { sourcePath: string }) => void;
+type PostProcessor = (
+  el: HTMLElement,
+  ctx: { sourcePath: string; addChild: (child: unknown) => void },
+) => void;
 
 // `registry: false` omits the embedRegistry so registerDrawioEmbeds falls
 // back to the reading-view post-processor (exercised in the fallback suite).
@@ -111,7 +114,7 @@ describe('embed pin wiring (post-processor fallback path)', () => {
     const section = document.body.createDiv();
     const span = section.createSpan({ cls: 'internal-embed' });
     span.setAttribute('src', 'multi.drawio');
-    postProcessor!(section, { sourcePath: 'note.md' });
+    postProcessor!(section, { sourcePath: 'note.md', addChild: () => {} });
     await tick();
 
     const [, next] = Array.from(span.querySelectorAll<HTMLButtonElement>('.drawio-page-control button'));

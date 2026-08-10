@@ -2,7 +2,10 @@ import { MarkdownPostProcessorContext, MarkdownRenderChild, Notice, Platform, TF
 import { renderPreview } from '../preview/ViewerRenderer';
 import { renderPageControl } from '../preview/pageControl';
 import { addEditHint } from '../preview/editHint';
-import { resolveClickAction, openWithDefaultApp } from '../preview/clickAction';
+import {
+  resolveClickAction, resolveEditButtonAction, openWithDefaultApp,
+} from '../preview/clickAction';
+import { InteractiveViewerController } from '../preview/interactiveViewer';
 import { getDiagramPages, resolvePageFromSubpath, ensureMxfile, type DiagramPage } from '../model/xmlUtils';
 import { FileSource } from './FileSource';
 import { DRAWIO_FILE_EXT } from '../constants';
@@ -44,6 +47,7 @@ interface EmbedRegistry {
 class DrawioFileEmbed extends MarkdownRenderChild {
   private currentPage = 0;
   private pageResolvedFromSubpath = false;
+  private interactive: InteractiveViewerController | null = null;
 
   constructor(
     private plugin: DrawioPlugin,
@@ -78,8 +82,15 @@ class DrawioFileEmbed extends MarkdownRenderChild {
     }));
   }
 
+  onunload(): void {
+    this.interactive?.dispose();
+    this.interactive = null;
+  }
+
   private async render(): Promise<void> {
     const el = this.containerEl;
+    this.interactive?.dispose();
+    this.interactive = null;
     el.empty();
     el.addClass('drawio-embed');
     const action = resolveClickAction(this.plugin.settings.previewClickAction, 'file');
@@ -110,6 +121,7 @@ class DrawioFileEmbed extends MarkdownRenderChild {
           onPageChange: (page) => {
             this.currentPage = page;
             renderPreview(preview, xml, { ...this.plugin.previewOpts(), page });
+            this.interactive?.bindSvg(preview.querySelector('svg'), { preserveViewportHeight: true });
           },
           pin: !this.sourcePath ? undefined : {
             pinnedPage: resolvePageFromSubpath(pages, this.subpath),
@@ -120,6 +132,21 @@ class DrawioFileEmbed extends MarkdownRenderChild {
 
       if (Platform.isDesktopApp && action.hint) {
         addEditHint(el, action.hint.label, action.hint.icon);
+      }
+      if (Platform.isDesktopApp) {
+        this.interactive = new InteractiveViewerController(el, preview, {
+          isEnabled: () =>
+            resolveClickAction(this.plugin.settings.previewClickAction, 'file').kind === 'interactive',
+          onEdit: () => {
+            const editAction = resolveEditButtonAction(this.plugin.settings.editButtonAction, 'file');
+            if (editAction.kind === 'editor') {
+              this.plugin.openEditor(new FileSource(this.plugin.app, this.file));
+            } else if (editAction.kind === 'defaultApp') {
+              openWithDefaultApp(this.plugin.app, this.file.path);
+            }
+          },
+        });
+        this.interactive.bindSvg(preview.querySelector('svg'));
       }
     } catch (err) {
       el.createDiv({ cls: 'drawio-error', text: `Failed to render diagram: ${String(err)}` });
@@ -191,7 +218,7 @@ function registerEmbedPostProcessor(plugin: DrawioPlugin) {
           openWithDefaultApp(plugin.app, file.path);
         }
       });
-      void renderEmbedInto(plugin, span, file, subpath, ctx.sourcePath);
+      void renderEmbedInto(plugin, span, file, subpath, ctx);
     }
   });
 }
@@ -201,7 +228,7 @@ async function renderEmbedInto(
   span: HTMLElement,
   file: TFile,
   subpath: string | undefined,
-  sourcePath: string,
+  ctx: MarkdownPostProcessorContext,
 ) {
   span.empty();
   span.addClass('drawio-embed');
@@ -211,6 +238,7 @@ async function renderEmbedInto(
     const wrapped = ensureMxfile(xml);
     const pages = getDiagramPages(wrapped);
     const currentPage = resolvePageFromSubpath(pages, subpath);
+    let interactive: InteractiveViewerController | null = null;
 
     const preview = span.createDiv({ cls: 'drawio-preview' });
     renderPreview(preview, xml, { ...plugin.previewOpts(), page: currentPage });
@@ -222,12 +250,13 @@ async function renderEmbedInto(
         initialPage: currentPage,
         onPageChange: (page) => {
           renderPreview(preview, xml, { ...plugin.previewOpts(), page });
+          interactive?.bindSvg(preview.querySelector('svg'), { preserveViewportHeight: true });
         },
-        pin: !sourcePath ? undefined : {
+        pin: !ctx.sourcePath ? undefined : {
           pinnedPage: currentPage,
           onPin: (page) => {
             const name = pages[page]?.name;
-            if (name !== undefined) void pinEmbedPage(plugin.app, sourcePath, file, subpath, name);
+            if (name !== undefined) void pinEmbedPage(plugin.app, ctx.sourcePath, file, subpath, name);
           },
         },
       });
@@ -237,6 +266,22 @@ async function renderEmbedInto(
     span.toggleClass('drawio-no-action', Platform.isDesktopApp && action.kind === 'none');
     if (Platform.isDesktopApp && action.hint) {
       addEditHint(span, action.hint.label, action.hint.icon);
+    }
+    if (Platform.isDesktopApp) {
+      interactive = new InteractiveViewerController(span, preview, {
+        isEnabled: () =>
+          resolveClickAction(plugin.settings.previewClickAction, 'file').kind === 'interactive',
+        onEdit: () => {
+          const editAction = resolveEditButtonAction(plugin.settings.editButtonAction, 'file');
+          if (editAction.kind === 'editor') {
+            plugin.openEditor(new FileSource(plugin.app, file));
+          } else if (editAction.kind === 'defaultApp') {
+            openWithDefaultApp(plugin.app, file.path);
+          }
+        },
+      });
+      interactive.bindSvg(preview.querySelector('svg'));
+      ctx.addChild(interactive);
     }
   } catch (err) {
     span.empty();

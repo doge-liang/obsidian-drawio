@@ -1,4 +1,6 @@
-import { App, ButtonComponent, Platform, PluginSettingTab, Setting } from 'obsidian';
+import {
+  App, ButtonComponent, DropdownComponent, Platform, PluginSettingTab, Setting,
+} from 'obsidian';
 import type DrawioPlugin from './main';
 import { DRAWIO_VERSION } from './constants';
 import { formatInstallProgress, type WebappInstallState } from './model/installStatus';
@@ -135,17 +137,33 @@ export class DrawioSettingTab extends PluginSettingTab {
           }));
 
       if (s.previewClickAction === 'interactive') {
-        new Setting(containerEl)
+        const editActionSetting = new Setting(containerEl)
           .setName('Edit button action')
           .setDesc(
-            'What the interactive viewer Edit button does. Code blocks have no underlying ' +
-            'file, so the system default app falls back to the built-in editor.',
-          )
-          .addDropdown((d) => d
-            .addOption('editor', 'Open built-in editor')
-            .addOption('defaultApp', 'Open in system default app')
-            .setValue(s.editButtonAction)
-            .onChange((v) => { s.editButtonAction = v as EditButtonAction; save(); }));
+            'How the Interactive Viewer Edit button opens file-backed and inline diagrams.',
+          );
+        editActionSetting.settingEl.addClass('drawio-edit-action-settings');
+        const fields = editActionSetting.settingEl.createDiv({ cls: 'drawio-edit-action-fields' });
+        const addField = (label: string, description: string): HTMLElement => {
+          const row = fields.createDiv({ cls: 'drawio-edit-action-row' });
+          const text = row.createDiv({ cls: 'drawio-edit-action-text' });
+          text.createDiv({ cls: 'drawio-edit-action-label', text: label });
+          text.createDiv({ cls: 'drawio-edit-action-description', text: description });
+          return row.createDiv({ cls: 'drawio-edit-action-control' });
+        };
+        new DropdownComponent(addField(
+          'File diagrams', 'Embeds and read-only .drawio file views.',
+        ))
+          .addOption('editor', 'Open built-in editor')
+          .addOption('defaultApp', 'Open in system default app')
+          .setValue(s.editButtonAction)
+          .onChange((v) => { s.editButtonAction = v as EditButtonAction; save(); });
+        new DropdownComponent(addField(
+          'Inline code blocks', 'No separate file; always uses the built-in editor.',
+        ))
+          .addOption('editor', 'Open built-in editor')
+          .setValue('editor')
+          .setDisabled(true);
       }
     }
 

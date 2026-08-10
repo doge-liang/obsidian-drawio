@@ -27,7 +27,7 @@ export interface DrawioSettings {
   readonlyFileView: boolean;
   /** Desktop: what clicking a preview does (embeds and read-only file tabs). */
   previewClickAction: PreviewClickAction;
-  /** Desktop interactive viewer: action used by its explicit Edit button. */
+  /** Desktop interactive viewer: Edit action for file-backed diagrams. */
   editButtonAction: EditButtonAction;
 }
 

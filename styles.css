@@ -89,6 +89,29 @@ body.drawio-align-left .drawio-preview svg { margin: 0; }
   border: 1px solid var(--background-modifier-error); border-radius: 6px;
 }
 
+.drawio-edit-action-settings {
+  flex-wrap: wrap;
+}
+.drawio-edit-action-fields {
+  width: 100%; margin-top: 10px; padding-left: 12px;
+  border-left: 2px solid var(--background-modifier-border);
+}
+.drawio-edit-action-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 8px 0;
+}
+.drawio-edit-action-row + .drawio-edit-action-row {
+  border-top: 1px solid var(--background-modifier-border);
+}
+.drawio-edit-action-label { color: var(--text-normal); font-weight: var(--font-semibold); }
+.drawio-edit-action-description { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.drawio-edit-action-control { flex: 0 0 auto; }
+.drawio-edit-action-control select { max-width: 240px; }
+@media (max-width: 600px) {
+  .drawio-edit-action-row { align-items: stretch; flex-direction: column; gap: 6px; }
+  .drawio-edit-action-control select { width: 100%; max-width: none; }
+}
+
 /* Multi-page navigation, rendered below the diagram when a file has >1 page. */
 .drawio-page-control {
   display: flex; align-items: center; justify-content: center; gap: 8px;

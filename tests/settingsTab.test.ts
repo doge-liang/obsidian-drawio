@@ -47,7 +47,22 @@ describe('DrawioSettingTab', () => {
     plugin.settings.previewClickAction = 'interactive';
     const tab = new DrawioSettingTab({} as never, plugin);
     tab.display();
-    expect(rowNames(tab.containerEl)).toContain('Edit button action');
+    const names = rowNames(tab.containerEl);
+    expect(names).toContain('Edit button action');
+    expect(names).not.toContain('File diagrams');
+    expect(names).not.toContain('Inline code blocks');
+    const group = tab.containerEl.querySelector<HTMLElement>('.drawio-edit-action-settings')!;
+    const rows = Array.from(group.querySelectorAll<HTMLElement>('.drawio-edit-action-row'));
+    expect(rows.map((row) =>
+      row.querySelector('.drawio-edit-action-label')?.textContent,
+    )).toEqual(['File diagrams', 'Inline code blocks']);
+    const fileRow = rows[0]!;
+    const inlineRow = rows[1]!;
+    expect(fileRow.querySelector<HTMLSelectElement>('select')!.disabled).toBe(false);
+    expect(fileRow.querySelectorAll('option')).toHaveLength(2);
+    expect(inlineRow.querySelector<HTMLSelectElement>('select')!.disabled).toBe(true);
+    expect(inlineRow.querySelector<HTMLSelectElement>('select')!.value).toBe('editor');
+    expect(inlineRow.querySelectorAll('option')).toHaveLength(1);
   });
 
   it('hides the editor-only rows on mobile, keeps preview/theme rows', () => {
