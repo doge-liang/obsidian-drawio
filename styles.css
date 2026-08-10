@@ -34,6 +34,46 @@ body.drawio-align-left .drawio-preview svg { margin: 0; }
 /* Previews whose click action is "Do nothing" shouldn't advertise clickability. */
 .drawio-codeblock.drawio-no-action, .drawio-embed.drawio-no-action { cursor: default; }
 
+/* Interactive viewer viewport and controls. */
+.drawio-interactive .drawio-preview { user-select: none; }
+.drawio-interactive-active .drawio-interactive-viewport {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 2px var(--interactive-accent);
+}
+.drawio-interactive-viewport .drawio-interactive-svg {
+  width: 100%; height: 100%; max-width: none;
+  margin: 0; display: block;
+}
+.drawio-interactive-toolbar {
+  position: absolute; z-index: 2; top: 8px; right: 8px;
+  display: none; align-items: center; gap: 4px;
+  padding: 4px; border: 1px solid var(--background-modifier-border);
+  border-radius: 6px; background: var(--background-secondary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
+}
+.drawio-interactive-active .drawio-interactive-toolbar { display: flex; }
+.drawio-interactive-active .drawio-edit-hint { opacity: 0; }
+.drawio-interactive-active.drawio-interactive-zoomed .drawio-interactive-viewport { cursor: grab; }
+.drawio-interactive-panning .drawio-interactive-viewport { cursor: grabbing; }
+.drawio-interactive-toolbar button {
+  margin: 0; padding: 3px 7px; font-size: var(--font-ui-small);
+}
+.drawio-interactive-resize-handle {
+  position: absolute; z-index: 3; left: 0; right: 0;
+  display: none; height: 10px; cursor: ns-resize;
+}
+.drawio-interactive-resize-handle::after {
+  content: ''; position: absolute; left: 50%; bottom: 2px;
+  width: 48px; height: 3px; transform: translateX(-50%);
+  border-radius: 2px; background: var(--interactive-accent);
+  opacity: .7;
+}
+.drawio-interactive-active .drawio-interactive-resize-handle { display: block; }
+.drawio-interactive-resizing { cursor: ns-resize; }
+
 .drawio-error {
   padding: 8px 12px; color: var(--text-error);
   border: 1px solid var(--background-modifier-error); border-radius: 6px;

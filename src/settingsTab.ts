@@ -3,7 +3,8 @@ import type DrawioPlugin from './main';
 import { DRAWIO_VERSION } from './constants';
 import { formatInstallProgress, type WebappInstallState } from './model/installStatus';
 import type {
-  DrawioMode, NewDiagramFormat, NewDiagramLocation, PreviewAlignment, PreviewClickAction,
+  DrawioMode, EditButtonAction, NewDiagramFormat, NewDiagramLocation,
+  PreviewAlignment, PreviewClickAction,
 } from './settings';
 
 /**
@@ -118,15 +119,34 @@ export class DrawioSettingTab extends PluginSettingTab {
         .setName('Preview click action')
         .setDesc(
           'What clicking a diagram preview does (embeds and read-only file tabs). Code blocks ' +
-          'have no underlying file, so they always open the built-in editor unless ' +
-          '"Do nothing" is selected.',
+          'have no underlying file, so opening the system default app falls back to the ' +
+          'built-in editor.',
         )
         .addDropdown((d) => d
           .addOption('editor', 'Open built-in editor')
           .addOption('defaultApp', 'Open in system default app')
+          .addOption('interactive', 'Interactive viewer')
           .addOption('none', 'Do nothing')
           .setValue(s.previewClickAction)
-          .onChange((v) => { s.previewClickAction = v as PreviewClickAction; save(); }));
+          .onChange((v) => {
+            s.previewClickAction = v as PreviewClickAction;
+            save();
+            this.display();
+          }));
+
+      if (s.previewClickAction === 'interactive') {
+        new Setting(containerEl)
+          .setName('Edit button action')
+          .setDesc(
+            'What the interactive viewer Edit button does. Code blocks have no underlying ' +
+            'file, so the system default app falls back to the built-in editor.',
+          )
+          .addDropdown((d) => d
+            .addOption('editor', 'Open built-in editor')
+            .addOption('defaultApp', 'Open in system default app')
+            .setValue(s.editButtonAction)
+            .onChange((v) => { s.editButtonAction = v as EditButtonAction; save(); }));
+      }
     }
 
     new Setting(containerEl)

@@ -38,6 +38,16 @@ describe('DrawioSettingTab', () => {
     expect(names).toContain('New diagram location');
     expect(names).toContain('Open diagram files read-only');
     expect(names).toContain('Preview click action');
+    expect(names).not.toContain('Edit button action');
+  });
+
+  it('shows Edit button action only when Interactive viewer is selected', () => {
+    Platform.isDesktopApp = true;
+    const plugin = fakePlugin();
+    plugin.settings.previewClickAction = 'interactive';
+    const tab = new DrawioSettingTab({} as never, plugin);
+    tab.display();
+    expect(rowNames(tab.containerEl)).toContain('Edit button action');
   });
 
   it('hides the editor-only rows on mobile, keeps preview/theme rows', () => {
@@ -53,6 +63,7 @@ describe('DrawioSettingTab', () => {
     expect(names).not.toContain('New diagram folder');
     expect(names).not.toContain('Open diagram files read-only');
     expect(names).not.toContain('Preview click action');
+    expect(names).not.toContain('Edit button action');
     expect(names).toContain('Preview alignment');
     expect(names).toContain('Follow Obsidian theme');
   });

@@ -38,6 +38,7 @@ describe('DEFAULT_SETTINGS', () => {
   it('defaults to the editable file view with the built-in editor click action', () => {
     expect(DEFAULT_SETTINGS.readonlyFileView).toBe(false);
     expect(DEFAULT_SETTINGS.previewClickAction).toBe('editor');
+    expect(DEFAULT_SETTINGS.editButtonAction).toBe('editor');
   });
 
   it('exposes exactly the documented settings keys (guards accidental shape drift)', () => {
@@ -45,6 +46,7 @@ describe('DEFAULT_SETTINGS', () => {
       [
         'customDrawioUrl',
         'drawioMode',
+        'editButtonAction',
         'followObsidianTheme',
         'newDiagramFolder',
         'newDiagramFormat',
