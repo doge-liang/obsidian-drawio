@@ -78,10 +78,11 @@ export class InteractiveViewerController extends MarkdownRenderChild {
   get isActive(): boolean { return this.active; }
 
   applyPersistedHeight(height: number): void {
-    if (this.disposed) return;
+    if (this.disposed || this.opts.isEnabled?.() === false) return;
     const next = clamp(height, MIN_VIEWPORT_HEIGHT, MAX_VIEWPORT_HEIGHT);
     this.opts.initialHeight = next;
     this.manuallyResized = true;
+    if (this.viewportInitialized && Math.abs(this.viewportHeight - next) < 0.5) return;
     if (!this.svg || !this.baseBox) return;
     this.preview.classList.add('drawio-interactive-viewport');
     this.svg.classList.add('drawio-interactive-svg');
@@ -148,6 +149,7 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.doc.removeEventListener('fullscreenchange', this.onFullscreenChange);
     this.doc.removeEventListener('pointermove', this.onResizeMove);
     this.doc.removeEventListener('pointerup', this.onResizeEnd);
+    this.doc.removeEventListener('pointercancel', this.onResizeEnd);
     this.doc.removeEventListener('pointermove', this.onPanMove);
     this.doc.removeEventListener('pointerup', this.onPanEnd);
     this.doc.defaultView?.removeEventListener('resize', this.onWindowResize);
@@ -172,7 +174,9 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.zoomInButton = this.createButton(toolbar, '+', 'Zoom in', () => this.zoomBy(ZOOM_STEP));
     this.zoomOutButton = this.createButton(toolbar, '−', 'Zoom out', () => this.zoomBy(1 / ZOOM_STEP));
     this.fitButton = this.createButton(toolbar, 'Fit', 'Fit diagram', () => this.fit());
-    this.editButton = this.createButton(toolbar, 'Edit', 'Edit diagram', () => this.opts.onEdit?.());
+    this.editButton = this.createButton(
+      toolbar, 'Edit', 'Edit diagram', () => { void this.runEditAction(); },
+    );
     this.fullscreenButton = this.createButton(
       toolbar, 'Full screen', 'Enter full screen', () => { void this.enterFullscreen(); },
     );
@@ -321,6 +325,12 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     }
   }
 
+  private async runEditAction(): Promise<void> {
+    if (this.doc.fullscreenElement === this.root) await this.exitFullscreen();
+    this.deactivate();
+    this.opts.onEdit?.();
+  }
+
   private onResizeStart = (event: PointerEvent): void => {
     if (!this.active) return;
     event.preventDefault();
@@ -332,6 +342,7 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.root.classList.add('drawio-interactive-resizing');
     this.doc.addEventListener('pointermove', this.onResizeMove);
     this.doc.addEventListener('pointerup', this.onResizeEnd);
+    this.doc.addEventListener('pointercancel', this.onResizeEnd);
   };
 
   private onResizeMove = (event: PointerEvent): void => {
@@ -348,6 +359,7 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.root.classList.remove('drawio-interactive-resizing');
     this.doc.removeEventListener('pointermove', this.onResizeMove);
     this.doc.removeEventListener('pointerup', this.onResizeEnd);
+    this.doc.removeEventListener('pointercancel', this.onResizeEnd);
     this.opts.onHeightCommit?.(Math.round(this.viewportHeight));
   };
 

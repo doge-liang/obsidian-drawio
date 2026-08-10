@@ -198,8 +198,50 @@ describe('InteractiveViewerController walking skeleton', () => {
     root.querySelector<HTMLButtonElement>('[aria-label="Edit diagram"]')!.click();
 
     expect(onEdit).toHaveBeenCalledTimes(1);
-    expect(controller.isActive).toBe(true);
+    expect(controller.isActive).toBe(false);
     controller.dispose();
+  });
+
+  it('exits fullscreen before running Edit', async () => {
+    const root = document.body.createDiv({ cls: 'drawio-codeblock' });
+    const preview = root.createDiv({ cls: 'drawio-preview' });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 200 100');
+    preview.appendChild(svg);
+    const descriptor = Object.getOwnPropertyDescriptor(document, 'fullscreenElement');
+    let fullscreenElement: Element | null = null;
+    Object.defineProperty(document, 'fullscreenElement', {
+      configurable: true,
+      get: () => fullscreenElement,
+    });
+    const requestFullscreen = vi.fn(() => {
+      fullscreenElement = root;
+      document.dispatchEvent(new Event('fullscreenchange'));
+      return Promise.resolve();
+    });
+    const exitFullscreen = vi.fn(() => {
+      fullscreenElement = null;
+      document.dispatchEvent(new Event('fullscreenchange'));
+      return Promise.resolve();
+    });
+    Object.defineProperty(root, 'requestFullscreen', { configurable: true, value: requestFullscreen });
+    Object.defineProperty(document, 'exitFullscreen', { configurable: true, value: exitFullscreen });
+    const onEdit = vi.fn();
+    const controller = new InteractiveViewerController(root, preview, { onEdit });
+    controller.bindSvg(svg);
+    preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    root.querySelector<HTMLButtonElement>('[aria-label="Enter full screen"]')!.click();
+
+    root.querySelector<HTMLButtonElement>('[aria-label="Edit diagram"]')!.click();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(exitFullscreen).toHaveBeenCalledTimes(1);
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(controller.isActive).toBe(false);
+    controller.dispose();
+    if (descriptor) Object.defineProperty(document, 'fullscreenElement', descriptor);
+    else delete (document as unknown as { fullscreenElement?: Element | null }).fullscreenElement;
   });
 
   it('enters and exits fullscreen through the preview document', () => {
@@ -335,6 +377,64 @@ describe('InteractiveViewerController walking skeleton', () => {
     const { preview, controller } = fixture();
     controller.applyPersistedHeight(560);
     expect(preview.style.height).toBe('560px');
+    controller.dispose();
+  });
+
+  it('does not apply persisted height while Interactive Viewer is disabled', () => {
+    const root = document.body.createDiv({ cls: 'drawio-codeblock' });
+    const preview = root.createDiv({ cls: 'drawio-preview' });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 200 100');
+    preview.appendChild(svg);
+    const controller = new InteractiveViewerController(root, preview, { isEnabled: () => false });
+    controller.bindSvg(svg);
+    controller.applyPersistedHeight(560);
+    expect(preview.style.height).toBe('');
+    expect(preview.classList.contains('drawio-interactive-viewport')).toBe(false);
+    controller.dispose();
+  });
+
+  it('keeps the current zoom when the persisted height is unchanged', () => {
+    const { root, preview, svg, controller } = fixture();
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    root.querySelector<HTMLButtonElement>('[aria-label="Zoom in"]')!.click();
+    frames.shift()!(0);
+    const zoomed = svg.getAttribute('viewBox');
+    const height = parseFloat(preview.style.height);
+
+    controller.applyPersistedHeight(height);
+
+    expect(frames).toHaveLength(0);
+    expect(svg.getAttribute('viewBox')).toBe(zoomed);
+    controller.dispose();
+    raf.mockRestore();
+  });
+
+  it('finishes and commits resize when the pointer gesture is cancelled', () => {
+    const root = document.body.createDiv({ cls: 'drawio-codeblock' });
+    const preview = root.createDiv({ cls: 'drawio-preview' });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 200 100');
+    preview.appendChild(svg);
+    const onHeightCommit = vi.fn();
+    const controller = new InteractiveViewerController(root, preview, { onHeightCommit });
+    controller.bindSvg(svg);
+    preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const handle = root.querySelector<HTMLElement>('.drawio-interactive-resize-handle')!;
+    handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 100 }));
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientY: 420 }));
+    document.dispatchEvent(new MouseEvent('pointercancel', { bubbles: true, clientY: 420 }));
+    const committedHeight = preview.style.height;
+
+    expect(onHeightCommit).toHaveBeenCalledTimes(1);
+    expect(root.classList.contains('drawio-interactive-resizing')).toBe(false);
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientY: 520 }));
+    expect(preview.style.height).toBe(committedHeight);
     controller.dispose();
   });
 

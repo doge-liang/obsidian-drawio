@@ -409,6 +409,7 @@ function applyStoredEmbedHeight(
   ctx: MarkdownPostProcessorContext | undefined,
   el: HTMLElement,
 ): void {
+  if (resolveClickAction(plugin.settings.previewClickAction, 'file').kind !== 'interactive') return;
   void readEmbedViewportHeight(
     plugin.app, sourcePath, file, subpath, ctx, el,
     getEmbedOccurrence(el), getLivePreviewSourceOffset(el),

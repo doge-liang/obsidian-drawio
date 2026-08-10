@@ -244,6 +244,24 @@ describe('drawio embed — mobile click behavior', () => {
     raf.mockRestore();
   });
 
+  it('does not read persisted height outside Interactive Viewer mode', async () => {
+    Platform.isDesktopApp = true;
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const { plugin, create } = fakePlugin(vi.fn(), 'editor');
+    registerDrawioEmbeds(plugin);
+    const containerEl = document.createElement('div');
+    await create(containerEl, 'note.md').loadFile();
+    frames.shift()?.(0);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(heightMetadata.read).not.toHaveBeenCalled();
+    raf.mockRestore();
+  });
+
   it('passes the duplicate embed occurrence from the current Markdown surface', async () => {
     Platform.isDesktopApp = true;
     const { plugin, create } = fakePlugin(vi.fn(), 'interactive');
