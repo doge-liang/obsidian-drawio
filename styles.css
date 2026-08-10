@@ -53,15 +53,32 @@ body.drawio-align-left .drawio-preview svg { margin: 0; }
   padding: 4px; border: 1px solid var(--background-modifier-border);
   border-radius: 6px; background: var(--background-secondary);
   box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
+  opacity: .58; transition: opacity .15s ease;
 }
 .drawio-interactive-active .drawio-interactive-toolbar { display: flex; }
+.drawio-interactive-toolbar:hover,
+.drawio-interactive-toolbar:focus-within { opacity: 1; }
 .drawio-edit-hint[hidden] { display: none !important; }
 .drawio-interactive-active.drawio-interactive-zoomed .drawio-interactive-viewport { cursor: grab; }
 .drawio-interactive-panning .drawio-interactive-viewport { cursor: grabbing; }
 .drawio-interactive-toolbar button {
   margin: 0; padding: 3px 7px; font-size: var(--font-ui-small);
+  transition: background-color .1s ease, color .1s ease, transform .06s ease;
+}
+.drawio-interactive-toolbar button:not(:disabled):hover {
+  background: var(--background-modifier-hover);
+}
+.drawio-interactive-toolbar button:not(:disabled):focus-visible {
+  outline: 2px solid var(--interactive-accent); outline-offset: 1px;
+}
+.drawio-interactive-toolbar button:not(:disabled):active {
+  color: var(--text-on-accent); background: var(--interactive-accent);
+  transform: scale(.94);
 }
 .drawio-interactive-toolbar button[hidden] { display: none !important; }
+@media (hover: none) {
+  .drawio-interactive-toolbar { opacity: 1; }
+}
 .drawio-interactive-resize-handle {
   position: absolute; z-index: 3; left: 0; right: 0;
   display: none; height: 10px; cursor: ns-resize;

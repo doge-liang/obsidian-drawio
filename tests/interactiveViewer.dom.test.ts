@@ -108,8 +108,8 @@ describe('InteractiveViewerController walking skeleton', () => {
     const y = zoomed[1]!;
     const width = zoomed[2]!;
     const height = zoomed[3]!;
-    expect(width).toBeLessThan(170);
-    expect(height).toBeLessThan(85);
+    expect(width).toBeCloseTo(200 / 1.02 ** 2);
+    expect(height).toBeCloseTo(100 / 1.02 ** 2);
     // The content coordinate under the 25%-from-top-left cursor stays fixed.
     expect(x + 0.25 * width).toBeCloseTo(50);
     expect(y + 0.25 * height).toBeCloseTo(25);
@@ -127,7 +127,7 @@ describe('InteractiveViewerController walking skeleton', () => {
       return frames.length;
     });
     preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    for (let i = 0; i < 30; i += 1) {
+    for (let i = 0; i < 120; i += 1) {
       preview.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -1 }));
     }
     frames.shift()!(0);
@@ -139,7 +139,7 @@ describe('InteractiveViewerController walking skeleton', () => {
     expect(zoomIn.disabled).toBe(true);
     expect(zoomOut.disabled).toBe(false);
 
-    for (let i = 0; i < 30; i += 1) {
+    for (let i = 0; i < 120; i += 1) {
       preview.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 1 }));
     }
     frames.shift()!(0);
@@ -328,6 +328,13 @@ describe('InteractiveViewerController walking skeleton', () => {
     document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientY: 520 }));
     expect(onHeightCommit).toHaveBeenCalledTimes(1);
     expect(onHeightCommit).toHaveBeenCalledWith(520);
+    controller.dispose();
+  });
+
+  it('applies a persisted height discovered after the SVG was bound', () => {
+    const { preview, controller } = fixture();
+    controller.applyPersistedHeight(560);
+    expect(preview.style.height).toBe('560px');
     controller.dispose();
   });
 

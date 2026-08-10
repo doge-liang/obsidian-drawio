@@ -14,6 +14,23 @@ vi.mock('../src/preview/ViewerRenderer', () => ({
     return true;
   },
 }));
+const heightMetadata = vi.hoisted(() => ({
+  read: vi.fn((_app: unknown, _sourcePath: string) => Promise.resolve<number | null>(null)),
+  write: vi.fn((
+    _app: unknown,
+    _sourcePath: string,
+    _file: unknown,
+    _subpath: string | undefined,
+    _height: number,
+    _ctx?: unknown,
+    _el?: HTMLElement,
+    _occurrence?: number,
+  ) => Promise.resolve<'written'>('written')),
+}));
+vi.mock('../src/preview/embedViewportHeight', () => ({
+  readEmbedViewportHeight: heightMetadata.read,
+  writeEmbedViewportHeight: heightMetadata.write,
+}));
 
 import { Platform, TFile } from 'obsidian';
 import { registerDrawioEmbeds } from '../src/file/EmbedRenderer';
@@ -26,7 +43,11 @@ const MULTI_PAGE_XML = '<mxfile>' +
   '<diagram id="1" name="Page-2"><mxGraphModel/></diagram>' +
   '</mxfile>';
 
-type Creator = (ctx: { containerEl: HTMLElement }, file: TFile, subpath?: string) => { loadFile: () => Promise<void> };
+type Creator = (
+  ctx: { containerEl: HTMLElement; sourcePath?: string },
+  file: TFile,
+  subpath?: string,
+) => { loadFile: () => Promise<void> };
 
 function fakePlugin(
   openEditor: DrawioPlugin['openEditor'],
@@ -51,14 +72,21 @@ function fakePlugin(
   };
   return {
     plugin: raw as unknown as DrawioPlugin,
-    create: (containerEl: HTMLElement) => creator!({ containerEl }, file, undefined),
+    create: (containerEl: HTMLElement, sourcePath?: string) =>
+      creator!({ containerEl, sourcePath }, file, undefined),
     openWithDefaultApp,
   };
 }
 
 describe('drawio embed — mobile click behavior', () => {
   const originalIsDesktopApp = Platform.isDesktopApp;
-  afterEach(() => { Platform.isDesktopApp = originalIsDesktopApp; });
+  afterEach(() => {
+    Platform.isDesktopApp = originalIsDesktopApp;
+    heightMetadata.read.mockReset();
+    heightMetadata.read.mockResolvedValue(null);
+    heightMetadata.write.mockReset();
+    heightMetadata.write.mockResolvedValue('written');
+  });
 
   it('opens the editor on click and shows the edit hint on desktop', async () => {
     Platform.isDesktopApp = true;
@@ -172,6 +200,70 @@ describe('drawio embed — mobile click behavior', () => {
     expect(preview.style.height).toBe(height);
     expect(containerEl.classList.contains('drawio-interactive-active')).toBe(false);
     expect(containerEl.querySelectorAll('.drawio-interactive-toolbar')).toHaveLength(1);
+  });
+
+  it('restores and commits the height of a Markdown embed insertion', async () => {
+    Platform.isDesktopApp = true;
+    heightMetadata.read.mockResolvedValue(360);
+    const { plugin, create } = fakePlugin(vi.fn(), 'interactive');
+    registerDrawioEmbeds(plugin);
+    const containerEl = document.createElement('div');
+    const embed = create(containerEl, 'note.md');
+    await embed.loadFile();
+    const preview = containerEl.querySelector<HTMLElement>('.drawio-preview')!;
+    expect(preview.style.height).toBe('360px');
+    expect(heightMetadata.read).toHaveBeenCalledTimes(1);
+
+    preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const handle = containerEl.querySelector<HTMLElement>('.drawio-interactive-resize-handle')!;
+    handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 360 }));
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientY: 500 }));
+    document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientY: 500 }));
+    expect(heightMetadata.write).toHaveBeenCalledTimes(1);
+    expect(heightMetadata.write.mock.calls[0]?.[1]).toBe('note.md');
+    expect(heightMetadata.write.mock.calls[0]?.[4]).toBe(500);
+  });
+
+  it('re-reads persisted height after the embed is bound to its render surface', async () => {
+    Platform.isDesktopApp = true;
+    heightMetadata.read.mockResolvedValueOnce(null).mockResolvedValueOnce(470);
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const { plugin, create } = fakePlugin(vi.fn(), 'interactive');
+    registerDrawioEmbeds(plugin);
+    const containerEl = document.createElement('div');
+    await create(containerEl, 'note.md').loadFile();
+    expect(frames).toHaveLength(1);
+    frames.shift()!(0);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(containerEl.querySelector<HTMLElement>('.drawio-preview')!.style.height).toBe('470px');
+    raf.mockRestore();
+  });
+
+  it('passes the duplicate embed occurrence from the current Markdown surface', async () => {
+    Platform.isDesktopApp = true;
+    const { plugin, create } = fakePlugin(vi.fn(), 'interactive');
+    registerDrawioEmbeds(plugin);
+    const surface = document.createElement('div');
+    surface.className = 'markdown-source-view';
+    const firstEl = surface.createDiv();
+    const secondEl = surface.createDiv();
+    await create(firstEl, 'note.md').loadFile();
+    await create(secondEl, 'note.md').loadFile();
+
+    secondEl.querySelector<HTMLElement>('.drawio-preview')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const handle = secondEl.querySelector<HTMLElement>('.drawio-interactive-resize-handle')!;
+    handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 360 }));
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientY: 520 }));
+    document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientY: 520 }));
+
+    expect(heightMetadata.write).toHaveBeenCalledTimes(1);
+    expect(heightMetadata.write.mock.calls[0]?.[7]).toBe(1);
   });
 
   it('shows a Notice instead of opening the editor on mobile, with no edit hint', async () => {

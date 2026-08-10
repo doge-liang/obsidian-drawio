@@ -36,7 +36,7 @@ function harness() {
     settings: { previewClickAction: 'interactive', editButtonAction: 'editor' },
     previewOpts: () => ({ dark: false }),
     app: {
-      vault: { read: () => Promise.resolve(XML) },
+      vault: { read: () => Promise.resolve(XML), on: vi.fn(() => ({})) },
       metadataCache: { getFirstLinkpathDest: () => file },
     },
     registerMarkdownPostProcessor: (fn: Processor) => { processor = fn; },

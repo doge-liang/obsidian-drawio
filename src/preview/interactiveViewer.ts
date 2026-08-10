@@ -21,7 +21,7 @@ interface ViewBox {
   height: number;
 }
 
-const ZOOM_STEP = 1.2;
+const ZOOM_STEP = 1.02;
 const MAX_SCALE = 8;
 const SCALE_EPSILON = 0.0001;
 
@@ -76,6 +76,19 @@ export class InteractiveViewerController extends MarkdownRenderChild {
   }
 
   get isActive(): boolean { return this.active; }
+
+  applyPersistedHeight(height: number): void {
+    if (this.disposed) return;
+    const next = clamp(height, MIN_VIEWPORT_HEIGHT, MAX_VIEWPORT_HEIGHT);
+    this.opts.initialHeight = next;
+    this.manuallyResized = true;
+    if (!this.svg || !this.baseBox) return;
+    this.preview.classList.add('drawio-interactive-viewport');
+    this.svg.classList.add('drawio-interactive-svg');
+    this.setViewportHeight(next);
+    this.viewportInitialized = true;
+    this.fit();
+  }
 
   bindSvg(svg: SVGSVGElement | null, opts: BindSvgOptions = {}): void {
     const preservedHeight = opts.preserveViewportHeight && this.viewportInitialized

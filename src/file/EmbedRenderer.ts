@@ -1,4 +1,5 @@
 import { MarkdownPostProcessorContext, MarkdownRenderChild, Notice, Platform, TFile } from 'obsidian';
+import { EditorView } from '@codemirror/view';
 import { renderPreview } from '../preview/ViewerRenderer';
 import { renderPageControl } from '../preview/pageControl';
 import { addEditHint } from '../preview/editHint';
@@ -6,6 +7,9 @@ import {
   resolveClickAction, resolveEditButtonAction, openWithDefaultApp,
 } from '../preview/clickAction';
 import { InteractiveViewerController } from '../preview/interactiveViewer';
+import {
+  readEmbedViewportHeight, writeEmbedViewportHeight,
+} from '../preview/embedViewportHeight';
 import { getDiagramPages, resolvePageFromSubpath, ensureMxfile, type DiagramPage } from '../model/xmlUtils';
 import { FileSource } from './FileSource';
 import { DRAWIO_FILE_EXT } from '../constants';
@@ -80,6 +84,15 @@ class DrawioFileEmbed extends MarkdownRenderChild {
     this.registerEvent(this.plugin.app.vault.on('modify', (f) => {
       if (f instanceof TFile && f.path === this.file.path) void this.render();
     }));
+    if (this.sourcePath) {
+      this.registerEvent(this.plugin.app.vault.on('modify', (f) => {
+        if (!(f instanceof TFile) || f.path !== this.sourcePath || !this.interactive) return;
+        applyStoredEmbedHeight(
+          this.plugin, this.interactive, this.sourcePath!, this.file, this.subpath,
+          undefined, this.containerEl,
+        );
+      }));
+    }
   }
 
   onunload(): void {
@@ -93,7 +106,19 @@ class DrawioFileEmbed extends MarkdownRenderChild {
     this.interactive = null;
     el.empty();
     el.addClass('drawio-embed');
+    if (this.sourcePath) markEmbedInsertion(el, this.sourcePath, this.file, this.subpath);
     const action = resolveClickAction(this.plugin.settings.previewClickAction, 'file');
+    let initialHeight: number | null = null;
+    if (Platform.isDesktopApp && action.kind === 'interactive' && this.sourcePath) {
+      try {
+        initialHeight = await readEmbedViewportHeight(
+          this.plugin.app, this.sourcePath, this.file, this.subpath,
+          undefined, undefined, getEmbedOccurrence(el), getLivePreviewSourceOffset(el),
+        );
+      } catch {
+        initialHeight = null;
+      }
+    }
     el.setAttribute('title', Platform.isDesktopApp ? action.title : 'Drawio diagram');
     el.toggleClass('drawio-no-action', Platform.isDesktopApp && action.kind === 'none');
     try {
@@ -137,6 +162,13 @@ class DrawioFileEmbed extends MarkdownRenderChild {
         this.interactive = new InteractiveViewerController(el, preview, {
           isEnabled: () =>
             resolveClickAction(this.plugin.settings.previewClickAction, 'file').kind === 'interactive',
+          initialHeight: initialHeight ?? undefined,
+          onHeightCommit: this.sourcePath ? (height) => {
+            commitEmbedHeight(
+              this.plugin, this.sourcePath!, this.file, this.subpath, height,
+              undefined, undefined, getEmbedOccurrence(el), getLivePreviewSourceOffset(el),
+            );
+          } : undefined,
           onEdit: () => {
             const editAction = resolveEditButtonAction(this.plugin.settings.editButtonAction, 'file');
             if (editAction.kind === 'editor') {
@@ -147,6 +179,10 @@ class DrawioFileEmbed extends MarkdownRenderChild {
           },
         });
         this.interactive.bindSvg(preview.querySelector('svg'));
+        scheduleStoredEmbedHeight(
+          this.plugin, this.interactive, this.sourcePath, this.file, this.subpath,
+          undefined, el,
+        );
       }
     } catch (err) {
       el.createDiv({ cls: 'drawio-error', text: `Failed to render diagram: ${String(err)}` });
@@ -232,6 +268,7 @@ async function renderEmbedInto(
 ) {
   span.empty();
   span.addClass('drawio-embed');
+  markEmbedInsertion(span, ctx.sourcePath, file, subpath);
   span.removeClasses(['file-embed', 'mod-generic', 'is-loaded']);
   try {
     const xml = await plugin.app.vault.read(file);
@@ -239,6 +276,18 @@ async function renderEmbedInto(
     const pages = getDiagramPages(wrapped);
     const currentPage = resolvePageFromSubpath(pages, subpath);
     let interactive: InteractiveViewerController | null = null;
+    let initialHeight: number | null = null;
+    if (Platform.isDesktopApp &&
+        resolveClickAction(plugin.settings.previewClickAction, 'file').kind === 'interactive') {
+      try {
+        initialHeight = await readEmbedViewportHeight(
+          plugin.app, ctx.sourcePath, file, subpath, ctx, span,
+          getEmbedOccurrence(span), getLivePreviewSourceOffset(span),
+        );
+      } catch {
+        initialHeight = null;
+      }
+    }
 
     const preview = span.createDiv({ cls: 'drawio-preview' });
     renderPreview(preview, xml, { ...plugin.previewOpts(), page: currentPage });
@@ -271,6 +320,13 @@ async function renderEmbedInto(
       interactive = new InteractiveViewerController(span, preview, {
         isEnabled: () =>
           resolveClickAction(plugin.settings.previewClickAction, 'file').kind === 'interactive',
+        initialHeight: initialHeight ?? undefined,
+        onHeightCommit: (height) => {
+          commitEmbedHeight(
+            plugin, ctx.sourcePath, file, subpath, height, ctx, span, getEmbedOccurrence(span),
+            getLivePreviewSourceOffset(span),
+          );
+        },
         onEdit: () => {
           const editAction = resolveEditButtonAction(plugin.settings.editButtonAction, 'file');
           if (editAction.kind === 'editor') {
@@ -281,10 +337,117 @@ async function renderEmbedInto(
         },
       });
       interactive.bindSvg(preview.querySelector('svg'));
+      scheduleStoredEmbedHeight(
+        plugin, interactive, ctx.sourcePath, file, subpath, ctx, span,
+      );
+      interactive.registerEvent(plugin.app.vault.on('modify', (changed) => {
+        if (changed instanceof TFile && changed.path === ctx.sourcePath) {
+          applyStoredEmbedHeight(
+            plugin, interactive!, ctx.sourcePath, file, subpath, ctx, span,
+          );
+        }
+      }));
       ctx.addChild(interactive);
     }
   } catch (err) {
     span.empty();
     span.createDiv({ cls: 'drawio-error', text: `Failed to render diagram: ${String(err)}` });
+  }
+}
+
+function commitEmbedHeight(
+  plugin: DrawioPlugin,
+  sourcePath: string,
+  file: TFile,
+  subpath: string | undefined,
+  height: number,
+  ctx?: MarkdownPostProcessorContext,
+  el?: HTMLElement,
+  occurrence?: number,
+  sourceOffset?: number,
+): void {
+  void writeEmbedViewportHeight(
+    plugin.app, sourcePath, file, subpath, height, ctx, el, occurrence, sourceOffset,
+  ).then((outcome) => {
+    if (outcome === 'ambiguous') {
+      new Notice(
+        'Drawio: several identical embeds match this insertion. ' +
+        'Resize it in Reading view or give the links distinct page subpaths.',
+      );
+    } else if (outcome === 'no-match') {
+      new Notice('Drawio: could not locate this embed in the note; viewer height was not saved.');
+    }
+  }).catch((err) => {
+    new Notice(`Drawio: could not save viewer height — ${String(err)}`);
+  });
+}
+
+function scheduleStoredEmbedHeight(
+  plugin: DrawioPlugin,
+  interactive: InteractiveViewerController,
+  sourcePath: string | undefined,
+  file: TFile,
+  subpath: string | undefined,
+  ctx: MarkdownPostProcessorContext | undefined,
+  el: HTMLElement,
+): void {
+  if (!sourcePath) return;
+  const run = () => applyStoredEmbedHeight(
+    plugin, interactive, sourcePath, file, subpath, ctx, el,
+  );
+  const win = el.ownerDocument.defaultView;
+  if (win) win.requestAnimationFrame(run);
+  else run();
+}
+
+function applyStoredEmbedHeight(
+  plugin: DrawioPlugin,
+  interactive: InteractiveViewerController,
+  sourcePath: string,
+  file: TFile,
+  subpath: string | undefined,
+  ctx: MarkdownPostProcessorContext | undefined,
+  el: HTMLElement,
+): void {
+  void readEmbedViewportHeight(
+    plugin.app, sourcePath, file, subpath, ctx, el,
+    getEmbedOccurrence(el), getLivePreviewSourceOffset(el),
+  ).then((height) => {
+    if (height !== null) interactive.applyPersistedHeight(height);
+  }).catch(() => { /* Keep the already rendered automatic height. */ });
+}
+
+function markEmbedInsertion(
+  el: HTMLElement,
+  sourcePath: string,
+  file: TFile,
+  subpath: string | undefined,
+): void {
+  el.dataset.drawioInsertionKey = JSON.stringify([
+    sourcePath,
+    file.path,
+    subpath?.replace(/^#/, '') ?? '',
+  ]);
+}
+
+function getEmbedOccurrence(el: HTMLElement): number {
+  const key = el.dataset.drawioInsertionKey;
+  if (!key) return 0;
+  const scope = el.closest<HTMLElement>(
+    '.markdown-preview-view, .markdown-source-view, .workspace-leaf-content',
+  ) ?? el.parentElement;
+  if (!scope) return 0;
+  const peers = Array.from(scope.querySelectorAll<HTMLElement>('.drawio-embed'))
+    .filter((candidate) => candidate.dataset.drawioInsertionKey === key);
+  const index = peers.indexOf(el);
+  return index === -1 ? 0 : index;
+}
+
+function getLivePreviewSourceOffset(el: HTMLElement): number | undefined {
+  try {
+    const view = EditorView.findFromDOM(el);
+    return view?.posAtDOM(el, 0);
+  } catch {
+    return undefined;
   }
 }
