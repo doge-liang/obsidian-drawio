@@ -26,7 +26,7 @@ function fakePlugin(openEditor: DrawioPlugin['openEditor'], previewClickAction: 
   let processor: Processor | undefined;
   const raw = {
     app: {},
-    settings: { previewClickAction },
+    settings: { previewClickAction, editButtonAction: 'editor' },
     previewOpts: () => ({ dark: false }),
     openEditor,
     registerMarkdownCodeBlockProcessor: (_lang: string, cb: Processor) => { processor = cb; },
@@ -97,7 +97,27 @@ describe('drawio code block — mobile click behavior', () => {
       .dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(wrapper.classList.contains('drawio-interactive-active')).toBe(true);
     expect(wrapper.querySelector('.drawio-interactive-toolbar')).not.toBeNull();
+    const explore = wrapper.querySelector<HTMLElement>('.drawio-edit-hint')!;
+    expect(explore.hidden).toBe(true);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(explore.hidden).toBe(false);
     expect(openEditor).not.toHaveBeenCalled();
+  });
+
+  it('opens the built-in editor from the interactive toolbar Edit button', async () => {
+    Platform.isDesktopApp = true;
+    const openEditor = vi.fn();
+    const { plugin, run } = fakePlugin(openEditor, 'interactive');
+    registerDrawioCodeBlock(plugin);
+    const el = document.createElement('div');
+    await run(XML, el, { sourcePath: 'note.md' });
+    const wrapper = el.querySelector<HTMLElement>('.drawio-codeblock')!;
+    wrapper.querySelector<HTMLElement>('.drawio-preview')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    wrapper.querySelector<HTMLButtonElement>('[aria-label="Edit diagram"]')!.click();
+
+    expect(openEditor).toHaveBeenCalledTimes(1);
   });
 
   it('rebinds the viewer after a page change without changing the viewport height', async () => {

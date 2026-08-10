@@ -2,7 +2,7 @@ import { MarkdownPostProcessorContext, Notice, Platform } from 'obsidian';
 import { renderPreview } from '../preview/ViewerRenderer';
 import { renderPageControl } from '../preview/pageControl';
 import { addEditHint } from '../preview/editHint';
-import { resolveClickAction } from '../preview/clickAction';
+import { resolveClickAction, resolveEditButtonAction } from '../preview/clickAction';
 import { InteractiveViewerController } from '../preview/interactiveViewer';
 import {
   readCodeBlockViewportHeight, writeCodeBlockViewportHeight,
@@ -65,6 +65,12 @@ async function renderCodeBlock(
         }).catch((err) => {
           new Notice(`Drawio: could not save viewer height — ${String(err)}`);
         });
+      },
+      onEdit: () => {
+        const editAction = resolveEditButtonAction(plugin.settings.editButtonAction, 'codeblock');
+        if (editAction.kind === 'editor') {
+          plugin.openEditor(new CodeBlockSource(plugin.app, ctx, el, source));
+        }
       },
     });
     interactive.bindSvg(preview.querySelector('svg'));

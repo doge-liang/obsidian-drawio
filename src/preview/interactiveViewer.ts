@@ -6,6 +6,7 @@ export interface InteractiveViewerOptions {
   isEnabled?: () => boolean;
   initialHeight?: number;
   onHeightCommit?: (height: number) => void;
+  onEdit?: () => void;
 }
 
 export interface BindSvgOptions {
@@ -41,7 +42,9 @@ export class InteractiveViewerController extends MarkdownRenderChild {
   private zoomInButton!: HTMLButtonElement;
   private zoomOutButton!: HTMLButtonElement;
   private fitButton!: HTMLButtonElement;
+  private fullscreenButton!: HTMLButtonElement;
   private editButton!: HTMLButtonElement;
+  private closeFullscreenButton!: HTMLButtonElement;
   private resizeHandle: HTMLElement;
   private doc: Document;
   private viewportInitialized = false;
@@ -68,6 +71,7 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.preview.addEventListener('pointerdown', this.onPanStart);
     this.doc.addEventListener('click', this.onDocumentClick);
     this.doc.addEventListener('keydown', this.onDocumentKeydown);
+    this.doc.addEventListener('fullscreenchange', this.onFullscreenChange);
     this.doc.defaultView?.addEventListener('resize', this.onWindowResize);
   }
 
@@ -105,6 +109,7 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.initializeViewport();
     this.active = true;
     this.root.classList.add('drawio-interactive-active');
+    this.setHintHidden(true);
     this.updateControls();
   }
 
@@ -112,6 +117,7 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.endPan();
     this.active = false;
     this.root.classList.remove('drawio-interactive-active');
+    this.setHintHidden(false);
     this.updateControls();
   }
 
@@ -120,11 +126,13 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.disposed = true;
     this.deactivate();
     this.root.classList.remove('drawio-interactive');
+    this.root.classList.remove('drawio-interactive-fullscreen');
     this.root.removeEventListener('click', this.onRootClick);
     this.preview.removeEventListener('wheel', this.onWheel);
     this.preview.removeEventListener('pointerdown', this.onPanStart);
     this.doc.removeEventListener('click', this.onDocumentClick);
     this.doc.removeEventListener('keydown', this.onDocumentKeydown);
+    this.doc.removeEventListener('fullscreenchange', this.onFullscreenChange);
     this.doc.removeEventListener('pointermove', this.onResizeMove);
     this.doc.removeEventListener('pointerup', this.onResizeEnd);
     this.doc.removeEventListener('pointermove', this.onPanMove);
@@ -151,7 +159,14 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.zoomInButton = this.createButton(toolbar, '+', 'Zoom in', () => this.zoomBy(ZOOM_STEP));
     this.zoomOutButton = this.createButton(toolbar, '−', 'Zoom out', () => this.zoomBy(1 / ZOOM_STEP));
     this.fitButton = this.createButton(toolbar, 'Fit', 'Fit diagram', () => this.fit());
-    this.editButton = this.createButton(toolbar, 'Edit', 'Edit diagram', () => {});
+    this.editButton = this.createButton(toolbar, 'Edit', 'Edit diagram', () => this.opts.onEdit?.());
+    this.fullscreenButton = this.createButton(
+      toolbar, 'Full screen', 'Enter full screen', () => { void this.enterFullscreen(); },
+    );
+    this.closeFullscreenButton = this.createButton(
+      toolbar, '×', 'Exit full screen', () => { void this.exitFullscreen(); },
+    );
+    this.closeFullscreenButton.hidden = true;
     return toolbar;
   }
 
@@ -193,8 +208,24 @@ export class InteractiveViewerController extends MarkdownRenderChild {
   };
 
   private onDocumentKeydown = (event: KeyboardEvent): void => {
-    if (event.key === 'Escape') this.deactivate();
+    if (event.key !== 'Escape') return;
+    if (this.doc.fullscreenElement === this.root) void this.exitFullscreen();
+    this.deactivate();
   };
+
+  private onFullscreenChange = (): void => {
+    const fullscreen = this.doc.fullscreenElement === this.root;
+    this.root.classList.toggle('drawio-interactive-fullscreen', fullscreen);
+    this.fullscreenButton.hidden = fullscreen;
+    this.closeFullscreenButton.hidden = !fullscreen;
+    this.closeFullscreenButton.disabled = !fullscreen;
+  };
+
+  private setHintHidden(hidden: boolean): void {
+    for (const hint of Array.from(this.root.querySelectorAll<HTMLElement>('.drawio-edit-hint'))) {
+      hint.hidden = hidden;
+    }
+  }
 
   private onWheel = (event: WheelEvent): void => {
     if (!this.active || event.deltaY === 0) return;
@@ -255,6 +286,26 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.doc.removeEventListener('pointermove', this.onPanMove);
     this.doc.removeEventListener('pointerup', this.onPanEnd);
     this.doc.removeEventListener('pointercancel', this.onPanEnd);
+  }
+
+  private async enterFullscreen(): Promise<void> {
+    if (!this.active || typeof this.root.requestFullscreen !== 'function') return;
+    try {
+      await this.root.requestFullscreen();
+      this.onFullscreenChange();
+    } catch {
+      // The host may deny fullscreen; the rest of the viewer remains usable.
+    }
+  }
+
+  private async exitFullscreen(): Promise<void> {
+    if (this.doc.fullscreenElement !== this.root || typeof this.doc.exitFullscreen !== 'function') return;
+    try {
+      await this.doc.exitFullscreen();
+      this.onFullscreenChange();
+    } catch {
+      // The host may already be leaving fullscreen; fullscreenchange reconciles state.
+    }
   }
 
   private onResizeStart = (event: PointerEvent): void => {
@@ -364,8 +415,8 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.zoomInButton.disabled = !ready || scale >= MAX_SCALE - SCALE_EPSILON;
     this.zoomOutButton.disabled = !ready || scale <= 1 + SCALE_EPSILON;
     this.fitButton.disabled = !ready || scale <= 1 + SCALE_EPSILON;
-    // Wired in the toolbar/Edit stage.
-    this.editButton.disabled = true;
+    this.fullscreenButton.disabled = !ready || typeof this.root.requestFullscreen !== 'function';
+    this.editButton.disabled = !ready || this.opts.onEdit === undefined;
   }
 
   private scheduleViewBoxWrite(): void {

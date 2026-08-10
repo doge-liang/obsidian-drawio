@@ -45,7 +45,9 @@ describe('InteractiveViewerController walking skeleton', () => {
     expect(controller.isActive).toBe(false);
     expect(root.classList.contains('drawio-interactive-active')).toBe(false);
     const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>('.drawio-interactive-toolbar button'));
-    expect(buttons.map((button) => button.textContent)).toEqual(['+', '−', 'Fit', 'Edit']);
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      '+', '−', 'Fit', 'Edit', 'Full screen', '×',
+    ]);
     expect(buttons.every((button) => button.disabled)).toBe(true);
     controller.dispose();
   });
@@ -161,9 +163,11 @@ describe('InteractiveViewerController walking skeleton', () => {
     const zoomOut = toolbarButtons[1]!;
     const fit = toolbarButtons[2]!;
     const edit = toolbarButtons[3]!;
+    const fullscreen = toolbarButtons[4]!;
     expect(zoomIn.disabled).toBe(false);
     expect(zoomOut.disabled).toBe(true);
     expect(fit.disabled).toBe(true);
+    expect(fullscreen.disabled).toBe(true);
     expect(edit.disabled).toBe(true);
 
     zoomIn.click();
@@ -178,6 +182,66 @@ describe('InteractiveViewerController walking skeleton', () => {
     expect(zoomOut.disabled).toBe(true);
     controller.dispose();
     raf.mockRestore();
+  });
+
+  it('runs the explicit Edit action without triggering the preview click action', () => {
+    const root = document.body.createDiv({ cls: 'drawio-codeblock' });
+    const preview = root.createDiv({ cls: 'drawio-preview' });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 200 100');
+    preview.appendChild(svg);
+    const onEdit = vi.fn();
+    const controller = new InteractiveViewerController(root, preview, { onEdit });
+    controller.bindSvg(svg);
+    preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    root.querySelector<HTMLButtonElement>('[aria-label="Edit diagram"]')!.click();
+
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(controller.isActive).toBe(true);
+    controller.dispose();
+  });
+
+  it('enters and exits fullscreen through the preview document', () => {
+    const { root, preview, controller } = fixture();
+    const descriptor = Object.getOwnPropertyDescriptor(document, 'fullscreenElement');
+    let fullscreenElement: Element | null = null;
+    Object.defineProperty(document, 'fullscreenElement', {
+      configurable: true,
+      get: () => fullscreenElement,
+    });
+    const requestFullscreen = vi.fn(() => {
+      fullscreenElement = root;
+      document.dispatchEvent(new Event('fullscreenchange'));
+      return Promise.resolve();
+    });
+    const exitFullscreen = vi.fn(() => {
+      fullscreenElement = null;
+      document.dispatchEvent(new Event('fullscreenchange'));
+      return Promise.resolve();
+    });
+    Object.defineProperty(root, 'requestFullscreen', { configurable: true, value: requestFullscreen });
+    Object.defineProperty(document, 'exitFullscreen', { configurable: true, value: exitFullscreen });
+    preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    root.querySelector<HTMLButtonElement>('[aria-label="Enter full screen"]')!.click();
+    expect(requestFullscreen).toHaveBeenCalledTimes(1);
+    expect(root.classList.contains('drawio-interactive-fullscreen')).toBe(true);
+    expect(root.querySelector<HTMLButtonElement>('[aria-label="Enter full screen"]')!.hidden).toBe(true);
+    const close = root.querySelector<HTMLButtonElement>('[aria-label="Exit full screen"]')!;
+    expect(close.hidden).toBe(false);
+
+    close.click();
+    expect(exitFullscreen).toHaveBeenCalledTimes(1);
+    expect(root.classList.contains('drawio-interactive-fullscreen')).toBe(false);
+    expect(root.querySelector<HTMLButtonElement>('[aria-label="Enter full screen"]')!.hidden).toBe(false);
+
+    root.querySelector<HTMLButtonElement>('[aria-label="Enter full screen"]')!.click();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(exitFullscreen).toHaveBeenCalledTimes(2);
+    controller.dispose();
+    if (descriptor) Object.defineProperty(document, 'fullscreenElement', descriptor);
+    else delete (document as unknown as { fullscreenElement?: Element | null }).fullscreenElement;
   });
 
   it('creates a full-width viewport using the diagram aspect ratio', () => {
