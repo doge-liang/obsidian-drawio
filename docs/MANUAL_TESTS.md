@@ -54,3 +54,26 @@ Needs a note embedding a multi-page diagram twice: once bare
 - [ ] A markdown-style embed (`![alt](multi.drawio)`) shows the "markdown-style link" Notice on pin and the note text is untouched.
 - [ ] Clicking the pin never also triggers the embed click action
       (editor/default app).
+
+## Dual-format embed click-to-edit (0.6.0)
+
+Needs a `.drawio.svg` (and a `.drawio.png`) embedded in a note:
+`![[diagram.drawio.svg]]`. Test in **Reading view** (the hotspot is
+Reading-view only by design).
+
+- [ ] The embedded image shows an Edit (pencil) hint on hover, and clicking
+      anywhere on it opens the editor on the embedded diagram (not Obsidian's
+      image lightbox).
+- [ ] Editing and saving updates both the embedded XML and the rendered image.
+- [ ] With **Preview click action → Open in default app**, clicking opens the
+      file in the OS default app instead; with **Do nothing**, the image is not
+      clickable and shows no hint.
+- [ ] With **Preview click action → Interactive viewer**, clicking opens the
+      editor (the interactive viewer only drives `.drawio` SVG previews; the
+      native image has nothing to explore).
+- [ ] A plain (non-drawio) `.svg`/`.png` embed is unaffected — no hint, normal
+      image behavior.
+- [ ] On mobile, the native image is untouched (no hijacked click).
+- [ ] The standalone `.drawio.svg`/`.drawio.png` file tab still edits via the
+      right-click **Edit drawio diagram** menu / command (file-tab hotspot is
+      intentionally not added — Obsidian owns the native image view).
