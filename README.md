@@ -95,6 +95,24 @@ A store install ships without the offline drawio webapp (it is ~145 MB, beyond s
 
 Building from source also works and produces the same layout: run `npm run fetch-drawio` before `npm run build` and copy the `webapp/` folder alongside `main.js` (see Development below).
 
+## Troubleshooting
+
+**Clicking a diagram does nothing / the editor won't open.** Editing is desktop-only. On mobile you get previews only. On desktop, check **Settings → Drawio → Preview click action** — if it is set to **Do nothing**, previews are intentionally not clickable.
+
+**"The offline editor isn't installed" — or the editor opens blank in Offline mode.** A store install ships without the ~145 MB offline webapp. Open **Settings → Drawio**, keep **Editor source → Offline (bundled webapp)**, and click **Install** (a one-time ~53 MB download). Alternatively switch **Editor source** to **Online** to load the editor from diagrams.net. See [Offline editor](#offline-editor-optional) for a fully-offline install without downloading in-app.
+
+**The editor is blank after a plugin update.** A plugin update can bump the bundled drawio version. Open **Settings → Drawio** and click **Update** on the Offline row to bring the installed editor in step; until then it keeps working on the previous version.
+
+**The editor stays blank in a pop-out window.** This should work — if a diagram opened in a pop-out window renders blank, please file a bug with your Obsidian version. As a workaround, edit the diagram in the main window.
+
+**A preview shows "Invalid drawio diagram".** The block or file doesn't contain a valid drawio diagram. For a ` ```drawio ` block, the content must be drawio/mxGraph XML (an `<mxfile>` / `<mxGraphModel>`, or a full diagram exported from draw.io). Pasting AI-generated draw.io XML into the block should just render.
+
+**A `.drawio.svg` / `.drawio.png` image looks stale after I edited the diagram elsewhere.** Dual-format files keep the editable XML inside the image. If the XML is changed without re-exporting (for example by a fallback save), the picture can lag behind the data. Open the file here and save once — the editor re-exports the image to match.
+
+**Nothing renders on mobile, or I can't edit on mobile.** Mobile is preview-only by design (code blocks, embeds, and a read-only view for `.drawio` files, including multi-page navigation). Open the vault on a desktop to edit.
+
+Still stuck? Open the developer console (**Ctrl/Cmd+Shift+I → Console**), reproduce the problem, and include any red errors when you [file an issue](https://github.com/doge-liang/obsidian-drawio/issues/new/choose).
+
 ## Notes & limitations
 
 - **Editing is desktop-only** — it needs the iframe-based drawio editor and, in Offline mode, a local HTTP server. Mobile gets previews (see [Platform support](#platform-support)).

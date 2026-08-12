@@ -1,0 +1,98 @@
+name: Bug report
+description: Something is broken or behaving unexpectedly.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a report. A few quick details make bugs
+        far faster to fix. Before filing, please skim the
+        [Troubleshooting section of the README](https://github.com/doge-liang/obsidian-drawio#troubleshooting) —
+        it covers the most common issues (the offline editor not being installed,
+        a blank editor, stale dual-format images, and mobile editing).
+  - type: checkboxes
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and this has not been reported yet.
+          required: true
+        - label: I read the README Troubleshooting section.
+          required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: "Settings → Community plugins → Drawio, or the top of the plugin's settings tab."
+      placeholder: e.g. 0.5.3
+    validations:
+      required: true
+  - type: input
+    id: obsidian-version
+    attributes:
+      label: Obsidian version
+      description: "Help → About → Current version (also note if you are on an Insider/Catalyst build)."
+      placeholder: e.g. 1.8.10
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows (desktop)
+        - macOS (desktop)
+        - Linux (desktop)
+        - iOS / iPadOS (mobile)
+        - Android (mobile)
+    validations:
+      required: true
+  - type: dropdown
+    id: editor-source
+    attributes:
+      label: Editor source
+      description: "Settings → Drawio → Editor source. (Previews work the same on all three; editing differs.)"
+      options:
+        - Offline (bundled webapp)
+        - Online (diagrams.net)
+        - Custom URL
+        - "Not sure / not relevant (preview-only issue)"
+    validations:
+      required: true
+  - type: dropdown
+    id: offline-installed
+    attributes:
+      label: Is the offline editor installed?
+      description: "Settings → Drawio — the Offline row shows Install / Update when it is missing or out of date."
+      options:
+        - "Yes, installed and up to date"
+        - "No / it shows an Install button"
+        - "It shows an Update button"
+        - "Not applicable (Online or Custom)"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: |
+        1. Open a note with a ![[diagram.drawio]] embed
+        2. Click the preview
+        3. Expected the editor to open; instead …
+    validations:
+      required: true
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output (optional)
+      description: >-
+        On desktop, open the developer console (Ctrl/Cmd+Shift+I → Console) and paste
+        any red errors from the moment the problem occurs. This is the single most
+        useful thing for diagnosing editor/preview failures.
+      render: text
+  - type: checkboxes
+    attributes:
+      label: Follow-up
+      options:
+        - label: I am willing to test a fix in a pre-release build.
+          required: false

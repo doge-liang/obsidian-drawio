@@ -1,0 +1,46 @@
+name: Feature request
+description: Suggest a new capability or an improvement.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature ideas are very welcome. Describing the underlying problem — not just
+        the solution you have in mind — helps land something that fits the plugin's
+        offline-first, review-compliant design.
+  - type: checkboxes
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and this has not been requested yet.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What are you trying to do, and where does the plugin get in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like the plugin to do? UI, command, setting, behavior — whatever you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered (optional)
+      description: Other approaches, workarounds you use now, or how other tools handle this.
+  - type: dropdown
+    id: platform-scope
+    attributes:
+      label: Where should this apply?
+      options:
+        - Desktop only
+        - Mobile only
+        - Both desktop and mobile
+        - Not sure
+    validations:
+      required: false
