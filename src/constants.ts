@@ -15,6 +15,19 @@ export const DRAWIO_VERSION = 'v30.3.11';
 export const DRAWIO_WAR_URL =
   `https://github.com/jgraph/drawio/releases/download/${DRAWIO_VERSION}/draw.war`;
 
+/** SHA-256 of the pinned draw.war. Checked against the downloaded bytes before
+ * anything is extracted or installed — by the runtime installer
+ * (src/desktop/webappInstaller.ts) and by scripts/fetch-drawio.mjs, which pins
+ * the same literal (guarded by tests/drawioVersionSync.test.ts).
+ *
+ * Upstream publishes no checksum file: this digest was computed from the
+ * archive at DRAWIO_WAR_URL and cross-checked against the digest GitHub reports
+ * for that release asset. Bump it in both places whenever DRAWIO_VERSION moves,
+ * and only after verifying the new archive — a mismatch is meant to fail the
+ * build and the install loudly. */
+export const DRAWIO_WAR_SHA256 =
+  '8fd2efb34c2a4792ba24c2583500d6e9e0b893b02f288f4ab9da545a7aaeb076';
+
 /** Default empty mxfile diagram. */
 export const EMPTY_DIAGRAM =
   '<mxfile><diagram id="0" name="Page-1"><mxGraphModel dx="800" dy="600" grid="1" ' +

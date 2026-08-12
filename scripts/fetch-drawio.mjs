@@ -1,12 +1,17 @@
 // Downloads a pinned drawio webapp (draw.war = ZIP) and extracts static files to webapp/.
 import { copyFileSync, createWriteStream, existsSync, mkdirSync, rmSync } from 'node:fs';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
 
 const DRAWIO_VERSION = 'v30.3.11';
+// SHA-256 of the pinned draw.war — MUST match DRAWIO_WAR_SHA256 in
+// src/constants.ts (guarded by tests/drawioVersionSync.test.ts), so the
+// build-time fetch and the runtime installer accept the exact same bytes.
+const WAR_SHA256 = '8fd2efb34c2a4792ba24c2583500d6e9e0b893b02f288f4ab9da545a7aaeb076';
 const WAR_URL = `https://github.com/jgraph/drawio/releases/download/${DRAWIO_VERSION}/draw.war`;
 const OUT_DIR = join(process.cwd(), 'webapp');
 
@@ -15,6 +20,26 @@ async function download(url, dest) {
   if (!res.ok) throw new Error(`Download failed: ${res.status} ${url}`);
   if (!res.body) throw new Error(`Response body is null for ${url}`);
   await pipeline(res.body, createWriteStream(dest));
+}
+
+/**
+ * Abort unless the downloaded archive hashes to the pinned SHA-256. Runs before
+ * anything is extracted, so a bad download can never reach webapp/ or the
+ * vendored viewer.min.txt.
+ */
+async function verifyWarChecksum(file, expected) {
+  const actual = createHash('sha256').update(await readFile(file)).digest('hex');
+  if (actual !== expected) {
+    throw new Error(
+      `BLOCKED: checksum mismatch for ${WAR_URL}\n` +
+      `  expected sha256 ${expected}\n` +
+      `  actual   sha256 ${actual}\n` +
+      'The download was corrupted, or the pinned archive changed upstream. ' +
+      'Nothing was extracted. Re-run `npm run fetch-drawio`; if it keeps failing, ' +
+      'update WAR_SHA256 here and DRAWIO_WAR_SHA256 in src/constants.ts together, ' +
+      'and only after verifying the new archive.'
+    );
+  }
 }
 
 /**
@@ -58,14 +83,19 @@ function extractWithPython(pythonCmd, archive, destDir) {
 }
 
 async function main() {
-  if (existsSync(OUT_DIR)) rmSync(OUT_DIR, { recursive: true, force: true });
-  mkdirSync(OUT_DIR, { recursive: true });
-
   const tmp = await mkdtemp(join(tmpdir(), 'drawio-'));
   try {
     const war = join(tmp, 'draw.war');
     console.log(`Downloading ${WAR_URL} ...`);
     await download(WAR_URL, war);
+
+    console.log('Verifying checksum ...');
+    await verifyWarChecksum(war, WAR_SHA256);
+
+    // Only now is the previous webapp/ cleared: a failed download or a checksum
+    // mismatch above leaves whatever was already extracted fully intact.
+    if (existsSync(OUT_DIR)) rmSync(OUT_DIR, { recursive: true, force: true });
+    mkdirSync(OUT_DIR, { recursive: true });
 
     // draw.war is a ZIP. Extract everything, then drop the server-only WEB-INF/META-INF.
     console.log('Extracting ...');

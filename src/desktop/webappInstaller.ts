@@ -1,10 +1,11 @@
 import { get as httpsGet } from 'node:https';
+import { createHash } from 'node:crypto';
 import {
   existsSync, mkdirSync, renameSync, rmSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join, normalize, sep } from 'node:path';
 import { unzipSync } from 'fflate';
-import { DRAWIO_VERSION, DRAWIO_WAR_URL } from '../constants';
+import { DRAWIO_VERSION, DRAWIO_WAR_SHA256, DRAWIO_WAR_URL } from '../constants';
 import type { InstallProgress } from '../model/installStatus';
 
 /** Top-level directories in draw.war that are server-only and never served
@@ -12,9 +13,10 @@ import type { InstallProgress } from '../model/installStatus';
 const SKIP_PREFIXES = ['WEB-INF/', 'META-INF/'];
 
 /**
- * Download the pinned drawio webapp and install it into `<pluginDir>/webapp`.
- * The caller (settings tab) must stop the local server first — on Windows an
- * open file handle inside webapp/ would make the final swap fail.
+ * Download the pinned drawio webapp, verify it against DRAWIO_WAR_SHA256, and
+ * install it into `<pluginDir>/webapp`. The caller (settings tab) must stop the
+ * local server first — on Windows an open file handle inside webapp/ would make
+ * the final swap fail.
  *
  * The whole archive (~53 MB) is buffered in memory: it spares a temp file and
  * its cleanup, and is well within desktop Electron's budget.
@@ -53,11 +55,24 @@ function nextPaint(): Promise<void> {
   return Promise.race([paint, hiddenWindowFallback]);
 }
 
-/** The post-download half, separated for network-free testing: extract into a
- * staging dir, validate, then atomically swap into place. On any failure the
- * staging dir is removed; an existing webapp/ is either left fully in place
- * or fully restored — see `swapWebappIntoPlace`. */
-export function installFromWar(war: Uint8Array, pluginDir: string): void {
+/** The post-download half, separated for network-free testing: verify the
+ * archive's SHA-256, extract into a staging dir, validate, then atomically swap
+ * into place. On any failure the staging dir is removed; an existing webapp/ is
+ * either left fully in place or fully restored — see `swapWebappIntoPlace`.
+ *
+ * `expectedSha256` defaults to the pinned digest and is only ever passed by
+ * tests, which build small synthetic archives. Callers in production must not
+ * pass it — `installWebapp` deliberately keeps it out of its own signature, so
+ * the shipped path can only ever check against the pin. */
+export function installFromWar(
+  war: Uint8Array,
+  pluginDir: string,
+  expectedSha256: string = DRAWIO_WAR_SHA256,
+): void {
+  // Integrity gate first, ahead of every filesystem write below: an archive
+  // that fails it leaves the vault byte-for-byte untouched — no staging dir,
+  // no half-replaced webapp/.
+  verifyWarChecksum(war, expectedSha256);
   const staging = join(pluginDir, 'webapp.installing');
   rmSync(staging, { recursive: true, force: true });
   try {
@@ -76,6 +91,31 @@ export function installFromWar(war: Uint8Array, pluginDir: string): void {
     // away, force:true makes this a harmless no-op).
     rmSync(staging, { recursive: true, force: true });
     throw e;
+  }
+}
+
+/**
+ * Throw unless `war` hashes to `expected` (lowercase hex SHA-256).
+ *
+ * HTTPS and a version-pinned URL already make a substituted archive unlikely;
+ * this turns "unlikely" into "detected", and also catches a body that arrived
+ * intact-looking but corrupt (Content-Length only proves the byte count).
+ *
+ * Plain `!==` rather than a constant-time compare on purpose: the digest is a
+ * public constant compiled into the plugin, so there is no secret for a timing
+ * side channel to leak.
+ *
+ * Exported for tests.
+ */
+export function verifyWarChecksum(war: Uint8Array, expected: string = DRAWIO_WAR_SHA256): void {
+  const actual = createHash('sha256').update(war).digest('hex');
+  if (actual !== expected) {
+    throw new Error(
+      'The downloaded drawio archive does not match the checksum this plugin ' +
+      'version expects, so nothing was installed. The download may have been ' +
+      'corrupted in transit, or the archive published upstream may have changed. ' +
+      `Check your connection and try again. Expected SHA-256 ${expected}, got ${actual}.`,
+    );
   }
 }
 

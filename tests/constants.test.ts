@@ -6,6 +6,8 @@ import {
   DRAWIO_VIEW_TYPE,
   DRAWIO_FILE_EXT,
   DRAWIO_CODE_BLOCK_LANG,
+  DRAWIO_WAR_SHA256,
+  DRAWIO_WAR_URL,
 } from '../src/constants';
 import { isValidDrawioXml, getDiagramPages } from '../src/model/xmlUtils';
 
@@ -57,6 +59,13 @@ describe('constant invariants', () => {
 
   it('ONLINE_DRAWIO_URL points at the hosted embed app over https', () => {
     expect(ONLINE_DRAWIO_URL).toBe('https://embed.diagrams.net/');
+  });
+
+  it('pins the webapp archive to https and a full lowercase SHA-256', () => {
+    // A stray uppercase digit or a truncated paste would make every install
+    // fail the checksum gate; comparison is plain hex equality.
+    expect(DRAWIO_WAR_URL.startsWith('https://')).toBe(true);
+    expect(DRAWIO_WAR_SHA256).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it('exposes the stable view type / extension / block-language identifiers', () => {
