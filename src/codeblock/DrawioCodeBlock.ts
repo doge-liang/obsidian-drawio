@@ -2,25 +2,31 @@ import { MarkdownPostProcessorContext, Notice, Platform } from 'obsidian';
 import { renderPreview } from '../preview/ViewerRenderer';
 import { renderPageControl } from '../preview/pageControl';
 import { addEditHint } from '../preview/editHint';
-import { resolveClickAction } from '../preview/clickAction';
+import { resolveClickAction, resolveEditButtonAction } from '../preview/clickAction';
+import { InteractiveViewerController } from '../preview/interactiveViewer';
+import {
+  readCodeBlockViewportHeight, writeCodeBlockViewportHeight,
+} from '../preview/viewportHeight';
 import { getDiagramPages, ensureMxfile } from '../model/xmlUtils';
 import { CodeBlockSource } from './CodeBlockSource';
 import type DrawioPlugin from '../main';
 
 export function registerDrawioCodeBlock(plugin: DrawioPlugin) {
-  plugin.registerMarkdownCodeBlockProcessor('drawio', (source, el, ctx) => {
-    renderCodeBlock(plugin, source, el, ctx);
-  });
+  plugin.registerMarkdownCodeBlockProcessor('drawio', (source, el, ctx) =>
+    renderCodeBlock(plugin, source, el, ctx));
 }
 
-function renderCodeBlock(
+async function renderCodeBlock(
   plugin: DrawioPlugin,
   source: string,
   el: HTMLElement,
   ctx: MarkdownPostProcessorContext,
-) {
-  const wrapper = el.createDiv({ cls: 'drawio-codeblock' });
+): Promise<void> {
   const action = resolveClickAction(plugin.settings.previewClickAction, 'codeblock');
+  const initialHeight = Platform.isDesktopApp && action.kind === 'interactive'
+    ? await readCodeBlockViewportHeight(plugin.app, ctx, el, source)
+    : null;
+  const wrapper = el.createDiv({ cls: 'drawio-codeblock' });
   wrapper.setAttribute('title', Platform.isDesktopApp ? action.title : 'Drawio diagram');
   wrapper.toggleClass('drawio-no-action', Platform.isDesktopApp && action.kind === 'none');
   const preview = wrapper.createDiv({ cls: 'drawio-preview' });
@@ -28,6 +34,7 @@ function renderCodeBlock(
   const wrapped = ensureMxfile(source);
   const pages = getDiagramPages(wrapped);
   let currentPage = 0;
+  let interactive: InteractiveViewerController | null = null;
   renderPreview(preview, source, { ...plugin.previewOpts(), page: currentPage });
 
   if (pages.length > 1) {
@@ -38,12 +45,36 @@ function renderCodeBlock(
       onPageChange: (page) => {
         currentPage = page;
         renderPreview(preview, source, { ...plugin.previewOpts(), page });
+        interactive?.bindSvg(preview.querySelector('svg'), { preserveViewportHeight: true });
       },
     });
   }
 
   if (Platform.isDesktopApp && action.hint) {
     addEditHint(wrapper, action.hint.label, action.hint.icon);
+  }
+
+  if (Platform.isDesktopApp) {
+    interactive = new InteractiveViewerController(wrapper, preview, {
+      isEnabled: () =>
+        resolveClickAction(plugin.settings.previewClickAction, 'codeblock').kind === 'interactive',
+      initialHeight: initialHeight ?? undefined,
+      onHeightCommit: (height) => {
+        void writeCodeBlockViewportHeight(plugin.app, ctx, el, source, height).then((written) => {
+          if (!written) new Notice('Drawio: could not save the viewer height for this code block.');
+        }).catch((err) => {
+          new Notice(`Drawio: could not save viewer height — ${String(err)}`);
+        });
+      },
+      onEdit: () => {
+        const editAction = resolveEditButtonAction(plugin.settings.editButtonAction, 'codeblock');
+        if (editAction.kind === 'editor') {
+          plugin.openEditor(new CodeBlockSource(plugin.app, ctx, el, source));
+        }
+      },
+    });
+    interactive.bindSvg(preview.querySelector('svg'));
+    ctx.addChild(interactive);
   }
 
   // Click anywhere on the diagram (the centered hint shows on hover). The

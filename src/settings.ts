@@ -6,7 +6,8 @@ export type NewDiagramLocation = 'root' | 'current' | 'folder';
  * everywhere, editable here). */
 export type NewDiagramFormat = 'drawio' | 'svg' | 'png';
 export type PreviewAlignment = 'center' | 'left';
-export type PreviewClickAction = 'editor' | 'defaultApp' | 'none';
+export type PreviewClickAction = 'editor' | 'defaultApp' | 'interactive' | 'none';
+export type EditButtonAction = 'editor' | 'defaultApp';
 
 export interface DrawioSettings {
   drawioMode: DrawioMode;
@@ -26,6 +27,8 @@ export interface DrawioSettings {
   readonlyFileView: boolean;
   /** Desktop: what clicking a preview does (embeds and read-only file tabs). */
   previewClickAction: PreviewClickAction;
+  /** Desktop interactive viewer: Edit action for file-backed diagrams. */
+  editButtonAction: EditButtonAction;
 }
 
 export const DEFAULT_SETTINGS: DrawioSettings = {
@@ -43,4 +46,5 @@ export const DEFAULT_SETTINGS: DrawioSettings = {
   previewAlignment: 'center',
   readonlyFileView: false,
   previewClickAction: 'editor',
+  editButtonAction: 'editor',
 };

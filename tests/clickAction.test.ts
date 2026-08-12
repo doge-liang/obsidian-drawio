@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { App } from 'obsidian';
-import { resolveClickAction, openWithDefaultApp } from '../src/preview/clickAction';
+import {
+  resolveClickAction, resolveEditButtonAction, openWithDefaultApp,
+} from '../src/preview/clickAction';
 
 describe('resolveClickAction', () => {
   it('maps "editor" to the built-in editor on every surface', () => {
@@ -32,6 +34,26 @@ describe('resolveClickAction', () => {
       expect(r.hint).toBeUndefined();
       expect(r.title).toBe('Drawio diagram');
     }
+  });
+
+  it('maps "interactive" to activation without opening an editor', () => {
+    for (const surface of ['codeblock', 'file'] as const) {
+      const r = resolveClickAction('interactive', surface);
+      expect(r.kind).toBe('interactive');
+      expect(r.hint).toEqual({ label: 'Explore', icon: 'move' });
+      expect(r.title).toBe('Click to explore diagram');
+    }
+  });
+});
+
+describe('resolveEditButtonAction', () => {
+  it('opens the selected editor action for file-backed previews', () => {
+    expect(resolveEditButtonAction('editor', 'file').kind).toBe('editor');
+    expect(resolveEditButtonAction('defaultApp', 'file').kind).toBe('defaultApp');
+  });
+
+  it('falls back to the built-in editor for code blocks', () => {
+    expect(resolveEditButtonAction('defaultApp', 'codeblock').kind).toBe('editor');
   });
 });
 

@@ -2,6 +2,16 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 
 // Mock the viewer.min.txt file to avoid needing to fetch it
 vi.mock('../src/preview/viewer.min.txt', () => ({ default: 'window.GraphViewer = window.GraphViewer || undefined;' }));
+vi.mock('../src/preview/ViewerRenderer', () => ({
+  renderPreview: (el: HTMLElement, _xml: string, opts: { page?: number }) => {
+    el.empty();
+    const svg = el.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', opts.page === 1 ? '10 20 400 300' : '0 0 200 100');
+    svg.dataset.page = String(opts.page ?? 0);
+    el.appendChild(svg);
+    return true;
+  },
+}));
 
 import { Platform, TFile } from 'obsidian';
 import { DrawioPreviewFileView } from '../src/preview/DrawioPreviewFileView';
@@ -15,7 +25,7 @@ function fakePlugin(
 ): DrawioPlugin {
   return {
     app,
-    settings: { previewClickAction },
+    settings: { previewClickAction, editButtonAction: 'editor' },
     previewOpts: () => ({ dark: false }),
     openEditor,
   } as unknown as DrawioPlugin;
@@ -100,6 +110,34 @@ describe('DrawioPreviewFileView', () => {
     view.contentEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(openEditor).not.toHaveBeenCalled();
     expect(openWithDefaultApp).not.toHaveBeenCalled();
+  });
+
+  it('mounts the interactive viewer and routes its Edit button', () => {
+    Platform.isDesktopApp = true;
+    const openEditor = vi.fn();
+    const view = makeView(fakePlugin('interactive', openEditor));
+    view.setViewData(XML, true);
+    const preview = view.contentEl.querySelector<HTMLElement>('.drawio-preview')!;
+    preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(view.contentEl.classList.contains('drawio-interactive-active')).toBe(true);
+    expect(view.contentEl.querySelector('.drawio-interactive-toolbar')).not.toBeNull();
+    view.contentEl.querySelector<HTMLButtonElement>('[aria-label="Edit diagram"]')!.click();
+    expect(openEditor).toHaveBeenCalledTimes(1);
+  });
+
+  it('rebinds the interactive viewer after a file-view page flip', () => {
+    Platform.isDesktopApp = true;
+    const view = makeView(fakePlugin('interactive'));
+    view.setViewData(MULTI_PAGE_XML, true);
+    const preview = view.contentEl.querySelector<HTMLElement>('.drawio-preview')!;
+    preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const height = preview.style.height;
+    view.contentEl.querySelectorAll<HTMLButtonElement>('.drawio-page-control button')[1]!.click();
+    const replacement = preview.querySelector('svg')!;
+    expect(replacement.dataset.page).toBe('1');
+    expect(replacement.classList.contains('drawio-interactive-svg')).toBe(true);
+    expect(preview.style.height).toBe(height);
+    expect(view.contentEl.classList.contains('drawio-interactive-active')).toBe(false);
   });
 
   it('renders the page switcher for multi-page diagrams', () => {

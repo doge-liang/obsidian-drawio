@@ -1,9 +1,12 @@
-import { App, ButtonComponent, Platform, PluginSettingTab, Setting } from 'obsidian';
+import {
+  App, ButtonComponent, DropdownComponent, Platform, PluginSettingTab, Setting,
+} from 'obsidian';
 import type DrawioPlugin from './main';
 import { DRAWIO_VERSION } from './constants';
 import { formatInstallProgress, type WebappInstallState } from './model/installStatus';
 import type {
-  DrawioMode, NewDiagramFormat, NewDiagramLocation, PreviewAlignment, PreviewClickAction,
+  DrawioMode, EditButtonAction, NewDiagramFormat, NewDiagramLocation,
+  PreviewAlignment, PreviewClickAction,
 } from './settings';
 
 /**
@@ -118,15 +121,50 @@ export class DrawioSettingTab extends PluginSettingTab {
         .setName('Preview click action')
         .setDesc(
           'What clicking a diagram preview does (embeds and read-only file tabs). Code blocks ' +
-          'have no underlying file, so they always open the built-in editor unless ' +
-          '"Do nothing" is selected.',
+          'have no underlying file, so opening the system default app falls back to the ' +
+          'built-in editor.',
         )
         .addDropdown((d) => d
           .addOption('editor', 'Open built-in editor')
           .addOption('defaultApp', 'Open in system default app')
+          .addOption('interactive', 'Interactive viewer')
           .addOption('none', 'Do nothing')
           .setValue(s.previewClickAction)
-          .onChange((v) => { s.previewClickAction = v as PreviewClickAction; save(); }));
+          .onChange((v) => {
+            s.previewClickAction = v as PreviewClickAction;
+            save();
+            this.display();
+          }));
+
+      if (s.previewClickAction === 'interactive') {
+        const editActionSetting = new Setting(containerEl)
+          .setName('Edit button action')
+          .setDesc(
+            'How the Interactive Viewer Edit button opens file-backed and inline diagrams.',
+          );
+        editActionSetting.settingEl.addClass('drawio-edit-action-settings');
+        const fields = editActionSetting.settingEl.createDiv({ cls: 'drawio-edit-action-fields' });
+        const addField = (label: string, description: string): HTMLElement => {
+          const row = fields.createDiv({ cls: 'drawio-edit-action-row' });
+          const text = row.createDiv({ cls: 'drawio-edit-action-text' });
+          text.createDiv({ cls: 'drawio-edit-action-label', text: label });
+          text.createDiv({ cls: 'drawio-edit-action-description', text: description });
+          return row.createDiv({ cls: 'drawio-edit-action-control' });
+        };
+        new DropdownComponent(addField(
+          'File diagrams', 'Embeds and read-only .drawio file views.',
+        ))
+          .addOption('editor', 'Open built-in editor')
+          .addOption('defaultApp', 'Open in system default app')
+          .setValue(s.editButtonAction)
+          .onChange((v) => { s.editButtonAction = v as EditButtonAction; save(); });
+        new DropdownComponent(addField(
+          'Inline code blocks', 'No separate file; always uses the built-in editor.',
+        ))
+          .addOption('editor', 'Open built-in editor')
+          .setValue('editor')
+          .setDisabled(true);
+      }
     }
 
     new Setting(containerEl)

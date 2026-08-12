@@ -1,10 +1,10 @@
 import { App, Notice } from 'obsidian';
-import type { PreviewClickAction } from '../settings';
+import type { EditButtonAction, PreviewClickAction } from '../settings';
 
 export type PreviewSurface = 'codeblock' | 'file';
 
 export interface ResolvedClickAction {
-  kind: 'editor' | 'defaultApp' | 'none';
+  kind: 'editor' | 'defaultApp' | 'interactive' | 'none';
   /** Hover-hint label and icon; absent when kind is 'none' (no hint shown). */
   hint?: { label: string; icon: string };
   /** Tooltip for the preview container. */
@@ -21,6 +21,13 @@ export function resolveClickAction(
   surface: PreviewSurface,
 ): ResolvedClickAction {
   if (action === 'none') return { kind: 'none', title: 'Drawio diagram' };
+  if (action === 'interactive') {
+    return {
+      kind: 'interactive',
+      hint: { label: 'Explore', icon: 'move' },
+      title: 'Click to explore diagram',
+    };
+  }
   if (action === 'defaultApp' && surface === 'file') {
     return {
       kind: 'defaultApp',
@@ -29,6 +36,14 @@ export function resolveClickAction(
     };
   }
   return { kind: 'editor', hint: { label: 'Edit', icon: 'pencil' }, title: 'Click to edit diagram' };
+}
+
+/** Resolve the explicit Edit button separately from preview activation. */
+export function resolveEditButtonAction(
+  action: EditButtonAction,
+  surface: PreviewSurface,
+): ResolvedClickAction {
+  return resolveClickAction(action, surface);
 }
 
 /**

@@ -3,7 +3,8 @@ import { DRAWIO_VIEW_TYPE } from '../constants';
 import { renderPreview } from './ViewerRenderer';
 import { renderPageControl } from './pageControl';
 import { addEditHint } from './editHint';
-import { resolveClickAction, openWithDefaultApp } from './clickAction';
+import { resolveClickAction, resolveEditButtonAction, openWithDefaultApp } from './clickAction';
+import { InteractiveViewerController } from './interactiveViewer';
 import { getDiagramPages, ensureMxfile } from '../model/xmlUtils';
 import { FileSource } from '../file/FileSource';
 import type DrawioPlugin from '../main';
@@ -16,6 +17,8 @@ import type DrawioPlugin from '../main';
  * follows the "Preview click action" setting.
  */
 export class DrawioPreviewFileView extends TextFileView {
+  private interactive: InteractiveViewerController | null = null;
+
   constructor(leaf: WorkspaceLeaf, private plugin: DrawioPlugin) {
     super(leaf);
     this.data = '';
@@ -33,12 +36,16 @@ export class DrawioPreviewFileView extends TextFileView {
   }
 
   clear(): void {
+    this.interactive?.dispose();
+    this.interactive = null;
     this.data = '';
     this.contentEl.empty();
   }
 
   private render(): void {
     const c = this.contentEl;
+    this.interactive?.dispose();
+    this.interactive = null;
     c.empty();
     c.addClass('drawio-preview-file-view');
 
@@ -69,12 +76,29 @@ export class DrawioPreviewFileView extends TextFileView {
         initialPage: 0,
         onPageChange: (page) => {
           renderPreview(preview, this.data, { ...this.plugin.previewOpts(), page });
+          this.interactive?.bindSvg(preview.querySelector('svg'), { preserveViewportHeight: true });
         },
       });
     }
 
     if (Platform.isDesktopApp && action.hint) {
       addEditHint(previewWrap, action.hint.label, action.hint.icon);
+    }
+    if (Platform.isDesktopApp) {
+      this.interactive = new InteractiveViewerController(c, preview, {
+        isEnabled: () =>
+          resolveClickAction(this.plugin.settings.previewClickAction, 'file').kind === 'interactive',
+        onEdit: () => {
+          if (!this.file) return;
+          const editAction = resolveEditButtonAction(this.plugin.settings.editButtonAction, 'file');
+          if (editAction.kind === 'editor') {
+            this.plugin.openEditor(new FileSource(this.plugin.app, this.file));
+          } else if (editAction.kind === 'defaultApp') {
+            openWithDefaultApp(this.plugin.app, this.file.path);
+          }
+        },
+      });
+      this.interactive.bindSvg(preview.querySelector('svg'));
     }
   }
 
