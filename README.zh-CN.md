@@ -95,6 +95,24 @@
 
 从源码构建同样可行，产物布局相同：先运行 `npm run fetch-drawio` 再 `npm run build`，并将 `webapp/` 文件夹与 `main.js` 一并复制（参见下文的[开发](#开发)章节）。
 
+## 疑难解答
+
+**点击图表没有反应 / 编辑器打不开。** 编辑仅限桌面端，移动端只能预览。在桌面端，请检查 **设置 → Drawio → Preview click action** —— 若设为 **Do nothing**，预览会被有意设为不可点击。
+
+**提示「离线编辑器未安装」，或 Offline 模式下编辑器打开是空白。** 商店安装不含约 145 MB 的离线 webapp。打开 **设置 → Drawio**，保持 **Editor source → Offline (bundled webapp)**，点击 **Install**（一次性约 53 MB 下载）。也可以把 **Editor source** 切到 **Online**，从 diagrams.net 加载编辑器。若想完全离线安装、不在应用内下载，参见[离线编辑器](#离线编辑器可选)。
+
+**插件更新后编辑器变空白。** 插件更新可能提升内置的 drawio 版本。打开 **设置 → Drawio**，在 Offline 行点击 **Update**，让已安装的编辑器与之一致；在此之前它仍以旧版本工作。
+
+**在弹出窗口（pop-out）里编辑器保持空白。** 这本应正常工作 —— 若在弹出窗口中打开的图表渲染为空白，请附上你的 Obsidian 版本提交 bug。临时办法是在主窗口中编辑该图表。
+
+**预览显示「Invalid drawio diagram」。** 该代码块或文件不含有效的 drawio 图表。对于 ` ```drawio ` 代码块，内容必须是 drawio/mxGraph XML（`<mxfile>` / `<mxGraphModel>`，或从 draw.io 导出的完整图表）。把 AI 生成的 draw.io XML 粘进代码块通常即可渲染。
+
+**`.drawio.svg` / `.drawio.png` 图片在别处编辑图表后显得过时。** 双格式文件把可编辑的 XML 存在图片内部。如果 XML 被改动却未重新导出（例如某次回退保存），图片可能落后于数据。在此打开该文件并保存一次 —— 编辑器会重新导出图片以与之匹配。
+
+**移动端什么都渲染不出来，或无法在移动端编辑。** 移动端按设计只做预览（代码块、嵌入，以及 `.drawio` 文件的只读视图，含多页导航）。请在桌面端打开库以进行编辑。
+
+仍未解决？打开开发者控制台（**Ctrl/Cmd+Shift+I → Console**），复现问题，并在[提交 issue](https://github.com/doge-liang/obsidian-drawio/issues/new/choose) 时附上任何红色报错。
+
 ## 注意事项与限制
 
 - **编辑仅限桌面端** —— 它需要基于 iframe 的 drawio 编辑器，且在 Offline 模式下需要本地 HTTP 服务器。移动端可预览（参见[平台支持](#平台支持)）。

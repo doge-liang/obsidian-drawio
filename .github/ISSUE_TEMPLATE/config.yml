@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Troubleshooting (read first)
+    url: https://github.com/doge-liang/obsidian-drawio#troubleshooting
+    about: Most common problems — offline editor not installed, blank editor, stale dual-format images, mobile editing — are answered here.
+  - name: Questions & discussion
+    url: https://forum.obsidian.md/c/share-showcase/9
+    about: For usage questions and general discussion, please use the Obsidian community forum rather than the issue tracker.
