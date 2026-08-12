@@ -18,6 +18,7 @@
   ],
   "license": "MIT",
   "devDependencies": {
+    "@codemirror/view": "^6.38.6",
     "@types/node": "^22.15.17",
     "esbuild": "0.25.5",
     "fflate": "^0.8.3",
