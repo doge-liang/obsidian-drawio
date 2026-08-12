@@ -8,6 +8,32 @@ The release workflow publishes the tagged version's section below as the GitHub
 release notes, so a version's section must be complete before its tag is pushed
 (see the Release process section of CLAUDE.md).
 
+## 0.6.0 - 2026-08-12
+
+### Added
+
+- **Interactive viewer** — a new option under **Preview click action**: click a
+  preview to explore it in place with wheel/trackpad zoom, drag panning, **Fit**,
+  and **Full screen**, plus an **Edit** button (where it opens is configurable
+  via **Edit button action**). Works on code blocks, `.drawio` embeds, and the
+  read-only file view; desktop only. Contributed by @Raumo0.
+- **Resizable preview height** — with the interactive viewer selected, drag the
+  handle under a code block or embed to set its preview height. The height is
+  remembered per insertion in the note and stays in sync between Live Preview
+  and Reading view.
+- **Click to edit `.drawio.svg` / `.drawio.png` embeds** — in Reading view,
+  dual-format image embeds now show the same click-to-edit hotspot as `.drawio`
+  embeds, following **Preview click action**. Desktop only.
+- **Checksum-verified editor downloads** — the offline editor download is now
+  verified against a pinned SHA-256 checksum before anything is installed. A
+  corrupted or altered download aborts with a clear message and leaves the
+  existing installation untouched.
+
+### Fixed
+
+- Editing a ` ```drawio ` code block in a note with Windows-style (CRLF) line
+  endings now finds and updates the block instead of failing.
+
 ## 0.5.3 - 2026-07-15
 
 ### Added
