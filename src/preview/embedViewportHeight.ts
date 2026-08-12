@@ -16,11 +16,14 @@ export async function readEmbedViewportHeight(
   ctx?: MarkdownPostProcessorContext,
   el?: HTMLElement,
   sourceOffset?: number,
+  occurrence?: number,
 ): Promise<number | null> {
   const note = app.vault.getAbstractFileByPath(sourcePath);
   if (!(note instanceof TFile)) return null;
   const doc = await app.vault.cachedRead(note);
-  const located = locateEmbed(app, sourcePath, targetFile, subpath, doc, ctx, el, sourceOffset);
+  const located = locateEmbed(
+    app, sourcePath, targetFile, subpath, doc, ctx, el, sourceOffset, occurrence,
+  );
   if (located.outcome !== 'found') return null;
   const offset = resolveCurrentOffset(doc, located.value);
   if (offset === null) return null;
@@ -61,13 +64,15 @@ export async function writeEmbedViewportHeight(
 }
 
 /**
- * Resolve which embed insertion in the note this render belongs to. Only
- * reliable signals are used, in order: the Live Preview source offset (from
- * the CodeMirror DOM position), the Reading-view section range, and finally a
- * single unambiguous candidate. When several identical embeds remain, the
- * result is 'ambiguous' and the caller must not write — a DOM-occurrence
- * index is NOT used as a tiebreaker, because virtualized rendering (Reading
- * view unloads offscreen sections) makes it point at the wrong insertion.
+ * Resolve which embed insertion in the note this render belongs to. Reliable
+ * signals are used in order: the Live Preview source offset (from the
+ * CodeMirror DOM position), the Reading-view section range, then a single
+ * unambiguous candidate. As a READ-ONLY last resort, the caller's
+ * DOM-occurrence index breaks remaining ties — virtualized rendering
+ * (Reading view unloads offscreen sections) can make it point at the wrong
+ * insertion, so writes never pass one: a misread height is cosmetic, a
+ * miswrite corrupts the note. Without any signal the result is 'ambiguous'
+ * and the caller must not write.
  */
 function locateEmbed(
   app: App,
@@ -78,6 +83,7 @@ function locateEmbed(
   ctx?: MarkdownPostProcessorContext,
   el?: HTMLElement,
   sourceOffset?: number,
+  occurrence?: number,
 ): { outcome: 'found'; value: LocatedEmbed } | { outcome: 'no-match' | 'ambiguous' } {
   const embeds = app.metadataCache.getCache(sourcePath)?.embeds ?? [];
   const expectedSubpath = normalizeSubpath(subpath);
@@ -109,9 +115,13 @@ function locateEmbed(
     }
   }
 
-  return candidates.length === 1
-    ? { outcome: 'found', value: { item: candidates[0]!, allItems: embeds } }
-    : { outcome: 'ambiguous' };
+  if (candidates.length === 1) {
+    return { outcome: 'found', value: { item: candidates[0]!, allItems: embeds } };
+  }
+  if (occurrence !== undefined && candidates[occurrence]) {
+    return { outcome: 'found', value: { item: candidates[occurrence]!, allItems: embeds } };
+  }
+  return { outcome: 'ambiguous' };
 }
 
 function sourceLinktext(item: EmbedCache): string {

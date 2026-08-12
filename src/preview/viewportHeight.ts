@@ -12,6 +12,12 @@ const ANY_COMMENT_RE = /^[\s>]*<!--\s*drawio-viewer\s*:/;
 const LINE_PREFIX_RE = /^[ \t]*(?:>[ \t]*)*/;
 /** Bullet / ordered-list markers — inserting a bare comment line above these restructures the list. */
 const LIST_MARKER_RE = /^(?:[-*+]|\d{1,9}[.)])\s/;
+/** Wikilink spans, whose `|` alias separators are not table delimiters. */
+const WIKILINK_RE = /!?\[\[[^\]]*\]\]/g;
+/** Escaped pipes are cell content even inside tables, never delimiters. */
+const ESCAPED_PIPE_RE = /\\\|/g;
+/** A callout/blockquote title line (`[!note] …`) — its marker must stay on the quote's first line. */
+const CALLOUT_TITLE_RE = /^\[!/;
 
 export function parseViewportHeightComment(line: string | undefined): number | null {
   const raw = COMMENT_RE.exec(line ?? '')?.[1];
@@ -29,9 +35,9 @@ export function parseViewportHeightComment(line: string | undefined): number | n
  * The inserted line reproduces the anchor line's blockquote/indentation
  * prefix so a diagram inside a callout keeps its callout intact. When the
  * anchor sits where a bare inserted line would corrupt the surrounding
- * structure — a table row or directly on a list-item marker — the write is
- * refused (`null`): not persisting the height is always preferable to
- * damaging the note.
+ * structure — a table row (bordered or borderless), a list-item marker
+ * line, or a callout title line — the write is refused (`null`): not
+ * persisting the height is always preferable to damaging the note.
  */
 export function upsertViewportHeightComment(
   doc: string,
@@ -41,17 +47,43 @@ export function upsertViewportHeightComment(
   const lines = doc.split('\n');
   const anchor = stripCr(lines[blockStart] ?? '');
   const prefix = LINE_PREFIX_RE.exec(anchor)?.[0] ?? '';
-  const comment = `${prefix}<!-- drawio-viewer: height=${clampHeight(height)} -->`;
   const previous = lines[blockStart - 1];
   if (blockStart > 0 && ANY_COMMENT_RE.test(stripCr(previous ?? ''))) {
-    // Updating the existing comment line never changes the note's structure.
-    lines[blockStart - 1] = comment + trailingCr(previous ?? '');
+    // Updating the existing comment line never changes the note's structure —
+    // and must keep the line's OWN prefix: the anchor may since have been
+    // de-quoted (or re-quoted) independently of the comment above it.
+    const prevPrefix = LINE_PREFIX_RE.exec(stripCr(previous ?? ''))?.[0] ?? '';
+    lines[blockStart - 1] =
+      `${prevPrefix}<!-- drawio-viewer: height=${clampHeight(height)} -->${trailingCr(previous ?? '')}`;
     return lines.join('\n');
   }
   const rest = anchor.slice(prefix.length);
-  if (rest.startsWith('|') || LIST_MARKER_RE.test(rest)) return null;
-  lines.splice(blockStart, 0, comment + trailingCr(lines[blockStart] ?? ''));
+  if (!canInsertAbove(prefix, rest)) return null;
+  // Match the file's dominant line ending, not the anchor's own: the last
+  // line of a CRLF note has no trailing CR, but the inserted line (which is
+  // never file-final) still needs one.
+  const eol = doc.includes('\r\n') ? '\r' : '';
+  lines.splice(
+    blockStart, 0,
+    `${prefix}<!-- drawio-viewer: height=${clampHeight(height)} -->${eol}`,
+  );
   return lines.join('\n');
+}
+
+/**
+ * Whether a bare comment line can be inserted above the anchor without
+ * restructuring the surrounding Markdown. Refused for list-item marker
+ * lines, callout title lines (the `[!type]` marker must stay on the quote's
+ * first line), and anything carrying a GFM table delimiter — including
+ * borderless rows (`a | b`), which is why any unescaped pipe outside a
+ * wikilink counts, not just a leading one.
+ */
+function canInsertAbove(prefix: string, rest: string): boolean {
+  if (LIST_MARKER_RE.test(rest)) return false;
+  if (prefix.includes('>') && CALLOUT_TITLE_RE.test(rest)) return false;
+  const withoutLinks = rest.replace(WIKILINK_RE, '');
+  const withoutEscapes = withoutLinks.replace(ESCAPED_PIPE_RE, '');
+  return !withoutEscapes.includes('|');
 }
 
 export async function readCodeBlockViewportHeight(

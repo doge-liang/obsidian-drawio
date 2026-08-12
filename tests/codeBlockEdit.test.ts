@@ -28,4 +28,10 @@ describe('replaceCodeBlockBody', () => {
     const out = replaceCodeBlockBody(doc, 0, 2, 'A2');
     expect(out).toBe(['```drawio', 'A2', '```', ''].join(NL));
   });
+
+  it('writes CRLF body lines into a CRLF note instead of mixing line endings', () => {
+    const doc = 'pre\r\n```drawio\r\nOLD1\r\nOLD2\r\n```\r\npost';
+    const out = replaceCodeBlockBody(doc, 1, 4, 'NEW1\nNEW2');
+    expect(out).toBe('pre\r\n```drawio\r\nNEW1\r\nNEW2\r\n```\r\npost');
+  });
 });

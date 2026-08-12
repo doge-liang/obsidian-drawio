@@ -97,6 +97,27 @@ describe('embed viewport height Markdown metadata', () => {
     expect(state.text).toBe(text);
   });
 
+  it('read falls back to the render-surface occurrence for identical duplicates', async () => {
+    // Reading view (registry path) has no ctx/el and no CodeMirror offset:
+    // without the occurrence hint, persisted heights of duplicate embeds
+    // would silently stop applying. Reads accept it; writes never do.
+    const embed = '![[diagram.drawio]]';
+    const text = `${embed}\n<!-- drawio-viewer: height=610 -->\n${embed}`;
+    const secondOffset = text.lastIndexOf(embed);
+    const { app, target } = harness(text, [
+      { link: 'diagram.drawio', original: embed, offset: 0 },
+      { link: 'diagram.drawio', original: embed, offset: secondOffset },
+    ]);
+    expect(await readEmbedViewportHeight(
+      app, 'note.md', target, undefined, undefined, undefined, undefined, 1,
+    )).toBe(610);
+    expect(await readEmbedViewportHeight(
+      app, 'note.md', target, undefined, undefined, undefined, undefined, 0,
+    )).toBeNull();
+    // Without any signal the read stays null instead of guessing.
+    expect(await readEmbedViewportHeight(app, 'note.md', target, undefined)).toBeNull();
+  });
+
   it('uses the Live Preview source offset to disambiguate duplicates', async () => {
     const embed = '![[diagram.drawio#Page-1]]';
     const text = `${embed}\nbetween\n${embed}`;

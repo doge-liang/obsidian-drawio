@@ -89,6 +89,40 @@ describe('viewport height Markdown metadata', () => {
     expect(upsertViewportHeightComment(doc, 2, 480)).toBeNull();
   });
 
+  it('refuses borderless GFM table rows (any unescaped pipe outside a wikilink)', () => {
+    expect(upsertViewportHeightComment('a | ![[diagram.drawio]] | b', 0, 480)).toBeNull();
+    expect(upsertViewportHeightComment('cell | ![[diagram.drawio]]', 0, 480)).toBeNull();
+  });
+
+  it('still writes for wikilink aliases and escaped pipes (not table delimiters)', () => {
+    expect(upsertViewportHeightComment('![[diagram.drawio|Architecture]]', 0, 480)).toBe(
+      '<!-- drawio-viewer: height=480 -->\n![[diagram.drawio|Architecture]]',
+    );
+    expect(upsertViewportHeightComment('price \\| note ![[diagram.drawio]]', 0, 480)).toBe(
+      '<!-- drawio-viewer: height=480 -->\nprice \\| note ![[diagram.drawio]]',
+    );
+  });
+
+  it('refuses the callout title line — the [!type] marker must stay on the first quote line', () => {
+    expect(upsertViewportHeightComment('> [!note] ![[diagram.drawio]]', 0, 480)).toBeNull();
+    expect(upsertViewportHeightComment('> > [!tip] ![[diagram.drawio]]', 0, 480)).toBeNull();
+    // Outside a blockquote `[!` is plain text, not a callout marker.
+    expect(upsertViewportHeightComment('[!not-a-callout] ![[diagram.drawio]]', 0, 480)).toBe(
+      '<!-- drawio-viewer: height=480 -->\n[!not-a-callout] ![[diagram.drawio]]',
+    );
+  });
+
+  it('keeps the existing comment line prefix when updating after the embed was de-quoted', () => {
+    const doc = [
+      '> <!-- drawio-viewer: height=300 -->',
+      '![[diagram.drawio]]',
+    ].join('\n');
+    expect(upsertViewportHeightComment(doc, 1, 350)).toBe([
+      '> <!-- drawio-viewer: height=350 -->',
+      '![[diagram.drawio]]',
+    ].join('\n'));
+  });
+
   it('refuses to insert directly above a list-item marker line', () => {
     expect(upsertViewportHeightComment('- ![[diagram.drawio]]', 0, 480)).toBeNull();
     expect(upsertViewportHeightComment('1. ![[diagram.drawio]]', 0, 480)).toBeNull();
@@ -120,6 +154,14 @@ describe('viewport height Markdown metadata', () => {
       '  <mxfile/>',
       '  ```',
     ].join('\n'));
+  });
+
+  it('inserts a CRLF comment above the final line of a CRLF note without a trailing newline', () => {
+    // The anchor itself carries no CR (it is the last line), but the inserted
+    // line is never file-final, so it must still match the file's CRLF style.
+    expect(upsertViewportHeightComment('a\r\n![[diagram.drawio]]', 1, 480)).toBe(
+      'a\r\n<!-- drawio-viewer: height=480 -->\r\n![[diagram.drawio]]',
+    );
   });
 
   it('preserves CRLF line endings when inserting and updating', () => {

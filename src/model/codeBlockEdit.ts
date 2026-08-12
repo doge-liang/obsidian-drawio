@@ -16,6 +16,10 @@ export function replaceCodeBlockBody(
   const closing = lines[lineEnd] ?? '';
   const before = lines.slice(0, lineStart);
   const after = lines.slice(lineEnd + 1);
-  const bodyLines = newBody.split('\n');
+  // Match the note's dominant line ending: every inserted body line precedes
+  // the closing fence, so in a CRLF note each one needs its CR — otherwise
+  // the write produces mixed line endings.
+  const eol = doc.includes('\r\n') ? '\r' : '';
+  const bodyLines = newBody.split('\n').map((line) => line + eol);
   return [...before, opening, ...bodyLines, closing, ...after].join('\n');
 }
