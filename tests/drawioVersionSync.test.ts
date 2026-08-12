@@ -26,12 +26,18 @@ describe('drawio version pinning', () => {
     expect(m?.[1]).toBe(DRAWIO_WAR_SHA256);
   });
 
-  it('verifies the archive in scripts/fetch-drawio.mjs before extracting it', () => {
+  // Ordering guard for the build-time path: the checksum must be checked before
+  // the script touches webapp/ or unpacks anything. Anchored on call-site tokens
+  // (not log text) — if any of them is renamed, update this list with it.
+  it('verifies the archive in scripts/fetch-drawio.mjs before touching webapp/', () => {
     const script = readFileSync('scripts/fetch-drawio.mjs', 'utf8');
     const verifiedAt = script.indexOf('await verifyWarChecksum(');
-    const extractedAt = script.indexOf("console.log('Extracting ...')");
+    const clearedAt = script.indexOf('rmSync(OUT_DIR');
+    const extractedAt = script.indexOf('extractWithUnzip(war,');
     expect(verifiedAt).toBeGreaterThan(-1);
+    expect(clearedAt).toBeGreaterThan(-1);
     expect(extractedAt).toBeGreaterThan(-1);
+    expect(verifiedAt).toBeLessThan(clearedAt);
     expect(verifiedAt).toBeLessThan(extractedAt);
   });
 });
