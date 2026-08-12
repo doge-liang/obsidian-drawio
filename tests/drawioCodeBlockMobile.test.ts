@@ -15,17 +15,21 @@ vi.mock('../src/preview/ViewerRenderer', () => ({
   },
 }));
 
-import { Platform } from 'obsidian';
+import { Platform, TFile } from 'obsidian';
 import { registerDrawioCodeBlock } from '../src/codeblock/DrawioCodeBlock';
 import type { PreviewClickAction } from '../src/settings';
 import type DrawioPlugin from '../src/main';
 
 type Processor = (source: string, el: HTMLElement, ctx: unknown) => void | Promise<void>;
 
-function fakePlugin(openEditor: DrawioPlugin['openEditor'], previewClickAction: PreviewClickAction = 'editor') {
+function fakePlugin(
+  openEditor: DrawioPlugin['openEditor'],
+  previewClickAction: PreviewClickAction = 'editor',
+  app: Record<string, unknown> = {},
+) {
   let processor: Processor | undefined;
   const raw = {
-    app: {},
+    app,
     settings: { previewClickAction, editButtonAction: 'editor' },
     previewOpts: () => ({ dark: false }),
     openEditor,
@@ -148,6 +152,54 @@ describe('drawio code block — mobile click behavior', () => {
     expect(preview.style.height).toBe(height);
     expect(wrapper.classList.contains('drawio-interactive-active')).toBe(false);
     expect(wrapper.querySelectorAll('.drawio-interactive-toolbar')).toHaveLength(1);
+  });
+
+  it('renders the diagram even when the stored-height read fails', async () => {
+    Platform.isDesktopApp = true;
+    const app = { vault: { getAbstractFileByPath: () => { throw new Error('metadata boom'); } } };
+    const { plugin, run } = fakePlugin(vi.fn(), 'interactive', app);
+    registerDrawioCodeBlock(plugin);
+    const el = document.createElement('div');
+    await run(XML, el, { sourcePath: 'note.md' });
+    expect(el.querySelector('.drawio-preview svg')).not.toBeNull();
+    expect(el.querySelector('.drawio-interactive-toolbar')).not.toBeNull();
+  });
+
+  it('constructs no interactive controller outside Interactive Viewer mode', async () => {
+    Platform.isDesktopApp = true;
+    const { plugin, run } = fakePlugin(vi.fn(), 'editor');
+    registerDrawioCodeBlock(plugin);
+    const el = document.createElement('div');
+    await run(XML, el, { sourcePath: 'note.md' });
+    const wrapper = el.querySelector<HTMLElement>('.drawio-codeblock')!;
+    expect(wrapper.querySelector('.drawio-interactive-toolbar')).toBeNull();
+    expect(wrapper.classList.contains('drawio-interactive')).toBe(false);
+  });
+
+  it('activates lazily with the stored height after switching to Interactive viewer', async () => {
+    Platform.isDesktopApp = true;
+    const note = Object.assign(new TFile(), { path: 'note.md', basename: 'note' });
+    const doc = `<!-- drawio-viewer: height=333 -->\n\`\`\`drawio\n${XML}\n\`\`\``;
+    const app = {
+      vault: {
+        getAbstractFileByPath: (p: string) => (p === 'note.md' ? note : null),
+        cachedRead: () => Promise.resolve(doc),
+      },
+    };
+    const { plugin, run } = fakePlugin(vi.fn(), 'editor', app);
+    registerDrawioCodeBlock(plugin);
+    const el = document.createElement('div');
+    await run(XML, el, { sourcePath: 'note.md', getSectionInfo: () => null });
+    const wrapper = el.querySelector<HTMLElement>('.drawio-codeblock')!;
+    expect(wrapper.classList.contains('drawio-interactive')).toBe(false);
+
+    plugin.settings.previewClickAction = 'interactive';
+    const preview = wrapper.querySelector<HTMLElement>('.drawio-preview')!;
+    preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(wrapper.classList.contains('drawio-interactive-active')).toBe(true);
+    expect(wrapper.querySelector('.drawio-interactive-toolbar')).not.toBeNull();
+    await new Promise((resolve) => { window.setTimeout(resolve, 0); });
+    expect(preview.style.height).toBe('333px');
   });
 
   it('shows a Notice instead of opening the editor on mobile, with no edit hint', async () => {

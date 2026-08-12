@@ -56,7 +56,10 @@ describe('interactive embed fallback renderer', () => {
     const section = document.body.createDiv();
     const span = section.createSpan({ cls: 'internal-embed' });
     span.setAttribute('src', 'diagram.drawio');
-    const addChild = vi.fn();
+    // Load added children the way Obsidian's real ctx.addChild does — the
+    // fallback renderer gates its interactive mount on the section lifecycle
+    // child actually being loaded.
+    const addChild = vi.fn((child: unknown) => { (child as { load?: () => void }).load?.(); });
     processor()(section, { sourcePath: 'note.md', addChild });
     await tick();
 
@@ -68,9 +71,19 @@ describe('interactive embed fallback renderer', () => {
     span.querySelector<HTMLButtonElement>('[aria-label="Edit diagram"]')!.click();
     expect(openEditor).toHaveBeenCalledTimes(1);
 
+    // Establish a viewport by resizing, then flip pages: the replacement SVG
+    // must be rebound while the manual height is preserved.
+    preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const handle = span.querySelector<HTMLElement>('.drawio-interactive-resize-handle')!;
+    handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 100 }));
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientY: 420 }));
+    document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientY: 420 }));
+    const height = preview.style.height;
+
     span.querySelectorAll<HTMLButtonElement>('.drawio-page-control button')[1]!.click();
     expect(preview.querySelector<SVGSVGElement>('svg')!.dataset.page).toBe('1');
     expect(preview.querySelector('svg')!.classList.contains('drawio-interactive-svg')).toBe(true);
+    expect(preview.style.height).toBe(height);
     expect(span.classList.contains('drawio-interactive-active')).toBe(false);
   });
 });

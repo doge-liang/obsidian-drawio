@@ -6,7 +6,7 @@ import { addEditHint } from '../preview/editHint';
 import {
   resolveClickAction, resolveEditButtonAction, openWithDefaultApp,
 } from '../preview/clickAction';
-import { InteractiveViewerController } from '../preview/interactiveViewer';
+import { mountInteractiveViewer, type InteractiveMountHandle } from '../preview/interactiveMount';
 import {
   readEmbedViewportHeight, writeEmbedViewportHeight,
 } from '../preview/embedViewportHeight';
@@ -17,6 +17,9 @@ import { dualFormatOf } from '../model/dualFormat';
 import { DRAWIO_FILE_EXT } from '../constants';
 import { pinEmbedPage } from './pinEmbedPage';
 import type DrawioPlugin from '../main';
+
+/** Trailing debounce for note-modify triggered height re-reads (keystroke bursts). */
+const STORED_HEIGHT_DEBOUNCE_MS = 250;
 
 /**
  * Make `![[diagram.drawio]]` embeds render the diagram (and open the editor on
@@ -53,7 +56,10 @@ interface EmbedRegistry {
 class DrawioFileEmbed extends MarkdownRenderChild {
   private currentPage = 0;
   private pageResolvedFromSubpath = false;
-  private interactive: InteractiveViewerController | null = null;
+  private interactive: InteractiveMountHandle | null = null;
+  /** Invalidates in-flight render() awaits when a newer render supersedes them. */
+  private renderGeneration = 0;
+  private storedHeightTimer: number | null = null;
 
   constructor(
     private plugin: DrawioPlugin,
@@ -88,43 +94,71 @@ class DrawioFileEmbed extends MarkdownRenderChild {
     }));
     if (this.sourcePath) {
       this.registerEvent(this.plugin.app.vault.on('modify', (f) => {
-        if (!(f instanceof TFile) || f.path !== this.sourcePath || !this.interactive) return;
-        applyStoredEmbedHeight(
-          this.plugin, this.interactive, this.sourcePath!, this.file, this.subpath,
-          undefined, this.containerEl,
-        );
+        if (!(f instanceof TFile) || f.path !== this.sourcePath) return;
+        this.scheduleStoredHeightRefresh();
       }));
     }
   }
 
   onunload(): void {
+    this.renderGeneration += 1;
+    this.cancelStoredHeightRefresh();
     this.interactive?.dispose();
     this.interactive = null;
   }
 
+  /**
+   * Debounced: every keystroke in the owning note fires `modify`, and each
+   * refresh costs a note read plus a metadata locate per embed — only the
+   * trailing edit of a burst matters.
+   */
+  private scheduleStoredHeightRefresh(): void {
+    if (!this.sourcePath || !this.interactive?.controller) return;
+    const win = this.containerEl.ownerDocument.defaultView ?? window;
+    this.cancelStoredHeightRefresh(win);
+    this.storedHeightTimer = win.setTimeout(() => {
+      this.storedHeightTimer = null;
+      if (!this.interactive || !this.sourcePath) return;
+      applyStoredEmbedHeight(
+        this.plugin, this.interactive, this.sourcePath, this.file, this.subpath,
+        undefined, this.containerEl,
+      );
+    }, STORED_HEIGHT_DEBOUNCE_MS);
+  }
+
+  private cancelStoredHeightRefresh(win?: Window): void {
+    if (this.storedHeightTimer === null) return;
+    (win ?? this.containerEl.ownerDocument.defaultView ?? window)
+      .clearTimeout(this.storedHeightTimer);
+    this.storedHeightTimer = null;
+  }
+
   private async render(): Promise<void> {
+    const generation = ++this.renderGeneration;
     const el = this.containerEl;
     this.interactive?.dispose();
     this.interactive = null;
     el.empty();
     el.addClass('drawio-embed');
-    if (this.sourcePath) markEmbedInsertion(el, this.sourcePath, this.file, this.subpath);
     const action = resolveClickAction(this.plugin.settings.previewClickAction, 'file');
     let initialHeight: number | null = null;
     if (Platform.isDesktopApp && action.kind === 'interactive' && this.sourcePath) {
       try {
         initialHeight = await readEmbedViewportHeight(
           this.plugin.app, this.sourcePath, this.file, this.subpath,
-          undefined, undefined, getEmbedOccurrence(el), getLivePreviewSourceOffset(el),
+          undefined, undefined, getLivePreviewSourceOffset(el),
         );
       } catch {
         initialHeight = null;
       }
+      // A newer render (or unload) superseded this one while reading.
+      if (generation !== this.renderGeneration) return;
     }
     el.setAttribute('title', Platform.isDesktopApp ? action.title : 'Drawio diagram');
     el.toggleClass('drawio-no-action', Platform.isDesktopApp && action.kind === 'none');
     try {
       const xml = await this.plugin.app.vault.read(this.file);
+      if (generation !== this.renderGeneration) return;
       const wrapped = ensureMxfile(xml);
       const pages = getDiagramPages(wrapped);
 
@@ -161,14 +195,18 @@ class DrawioFileEmbed extends MarkdownRenderChild {
         addEditHint(el, action.hint.label, action.hint.icon);
       }
       if (Platform.isDesktopApp) {
-        this.interactive = new InteractiveViewerController(el, preview, {
+        this.interactive = mountInteractiveViewer(el, preview, {
           isEnabled: () =>
             resolveClickAction(this.plugin.settings.previewClickAction, 'file').kind === 'interactive',
           initialHeight: initialHeight ?? undefined,
+          loadPersistedHeight: this.sourcePath ? () => readEmbedViewportHeight(
+            this.plugin.app, this.sourcePath!, this.file, this.subpath,
+            undefined, undefined, getLivePreviewSourceOffset(el),
+          ) : undefined,
           onHeightCommit: this.sourcePath ? (height) => {
             commitEmbedHeight(
               this.plugin, this.sourcePath!, this.file, this.subpath, height,
-              undefined, undefined, getEmbedOccurrence(el), getLivePreviewSourceOffset(el),
+              undefined, undefined, getLivePreviewSourceOffset(el),
             );
           } : undefined,
           onEdit: () => {
@@ -180,13 +218,13 @@ class DrawioFileEmbed extends MarkdownRenderChild {
             }
           },
         });
-        this.interactive.bindSvg(preview.querySelector('svg'));
         scheduleStoredEmbedHeight(
           this.plugin, this.interactive, this.sourcePath, this.file, this.subpath,
           undefined, el,
         );
       }
     } catch (err) {
+      if (generation !== this.renderGeneration) return;
       el.createDiv({ cls: 'drawio-error', text: `Failed to render diagram: ${String(err)}` });
     }
     // Wire the click handler once (survives re-renders; el.empty() keeps the
@@ -295,6 +333,18 @@ export function registerDualFormatEmbeds(plugin: DrawioPlugin) {
   });
 }
 
+/**
+ * Tracks whether the section that owns a fallback-rendered embed is still
+ * alive. Registered with `ctx.addChild` synchronously — before the async
+ * renders — so work that completes after the section was torn down can detect
+ * it and skip mounting anything that would leak.
+ */
+class EmbedSectionLifecycle extends MarkdownRenderChild {
+  active = false;
+  onload(): void { this.active = true; }
+  onunload(): void { this.active = false; }
+}
+
 /** Reading-view-only fallback when the embed registry is unavailable. */
 function registerEmbedPostProcessor(plugin: DrawioPlugin) {
   plugin.registerMarkdownPostProcessor((el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
@@ -327,7 +377,12 @@ function registerEmbedPostProcessor(plugin: DrawioPlugin) {
           openWithDefaultApp(plugin.app, file.path);
         }
       });
-      void renderEmbedInto(plugin, span, file, subpath, ctx);
+      // Register the lifecycle tracker before any awaits: if Obsidian tears
+      // the section down while the render below is still reading files, the
+      // tracker flips inactive and the interactive mount is skipped.
+      const lifecycle = new EmbedSectionLifecycle(span);
+      ctx.addChild(lifecycle);
+      void renderEmbedInto(plugin, span, file, subpath, ctx, lifecycle);
     }
   });
 }
@@ -338,24 +393,24 @@ async function renderEmbedInto(
   file: TFile,
   subpath: string | undefined,
   ctx: MarkdownPostProcessorContext,
+  lifecycle: EmbedSectionLifecycle,
 ) {
   span.empty();
   span.addClass('drawio-embed');
-  markEmbedInsertion(span, ctx.sourcePath, file, subpath);
   span.removeClasses(['file-embed', 'mod-generic', 'is-loaded']);
   try {
     const xml = await plugin.app.vault.read(file);
     const wrapped = ensureMxfile(xml);
     const pages = getDiagramPages(wrapped);
     const currentPage = resolvePageFromSubpath(pages, subpath);
-    let interactive: InteractiveViewerController | null = null;
+    let interactive: InteractiveMountHandle | null = null;
     let initialHeight: number | null = null;
     if (Platform.isDesktopApp &&
         resolveClickAction(plugin.settings.previewClickAction, 'file').kind === 'interactive') {
       try {
         initialHeight = await readEmbedViewportHeight(
           plugin.app, ctx.sourcePath, file, subpath, ctx, span,
-          getEmbedOccurrence(span), getLivePreviewSourceOffset(span),
+          getLivePreviewSourceOffset(span),
         );
       } catch {
         initialHeight = null;
@@ -389,14 +444,28 @@ async function renderEmbedInto(
     if (Platform.isDesktopApp && action.hint) {
       addEditHint(span, action.hint.label, action.hint.icon);
     }
-    if (Platform.isDesktopApp) {
-      interactive = new InteractiveViewerController(span, preview, {
+    // Only mount the interactive controller while the owning section is
+    // alive: this code runs after awaits, and a torn-down section would
+    // never unload a controller registered now (leaking its listeners).
+    if (Platform.isDesktopApp && lifecycle.active) {
+      let storedHeightTimer: number | null = null;
+      lifecycle.register(() => {
+        if (storedHeightTimer !== null) {
+          (span.ownerDocument.defaultView ?? window).clearTimeout(storedHeightTimer);
+          storedHeightTimer = null;
+        }
+      });
+      interactive = mountInteractiveViewer(span, preview, {
         isEnabled: () =>
           resolveClickAction(plugin.settings.previewClickAction, 'file').kind === 'interactive',
         initialHeight: initialHeight ?? undefined,
+        loadPersistedHeight: () => readEmbedViewportHeight(
+          plugin.app, ctx.sourcePath, file, subpath, ctx, span,
+          getLivePreviewSourceOffset(span),
+        ),
         onHeightCommit: (height) => {
           commitEmbedHeight(
-            plugin, ctx.sourcePath, file, subpath, height, ctx, span, getEmbedOccurrence(span),
+            plugin, ctx.sourcePath, file, subpath, height, ctx, span,
             getLivePreviewSourceOffset(span),
           );
         },
@@ -408,19 +477,24 @@ async function renderEmbedInto(
             openWithDefaultApp(plugin.app, file.path);
           }
         },
+        onController: (controller) => { lifecycle.addChild(controller); },
       });
-      interactive.bindSvg(preview.querySelector('svg'));
+      const mounted = interactive;
+      lifecycle.register(() => { mounted.dispose(); });
       scheduleStoredEmbedHeight(
-        plugin, interactive, ctx.sourcePath, file, subpath, ctx, span,
+        plugin, mounted, ctx.sourcePath, file, subpath, ctx, span,
       );
-      interactive.registerEvent(plugin.app.vault.on('modify', (changed) => {
-        if (changed instanceof TFile && changed.path === ctx.sourcePath) {
-          applyStoredEmbedHeight(
-            plugin, interactive!, ctx.sourcePath, file, subpath, ctx, span,
-          );
-        }
+      lifecycle.registerEvent(plugin.app.vault.on('modify', (changed) => {
+        if (!(changed instanceof TFile) || changed.path !== ctx.sourcePath) return;
+        const controller = mounted.controller;
+        if (!controller) return;
+        const win = span.ownerDocument.defaultView ?? window;
+        if (storedHeightTimer !== null) win.clearTimeout(storedHeightTimer);
+        storedHeightTimer = win.setTimeout(() => {
+          storedHeightTimer = null;
+          applyStoredEmbedHeight(plugin, mounted, ctx.sourcePath, file, subpath, ctx, span);
+        }, STORED_HEIGHT_DEBOUNCE_MS);
       }));
-      ctx.addChild(interactive);
     }
   } catch (err) {
     span.empty();
@@ -436,16 +510,20 @@ function commitEmbedHeight(
   height: number,
   ctx?: MarkdownPostProcessorContext,
   el?: HTMLElement,
-  occurrence?: number,
   sourceOffset?: number,
 ): void {
   void writeEmbedViewportHeight(
-    plugin.app, sourcePath, file, subpath, height, ctx, el, occurrence, sourceOffset,
+    plugin.app, sourcePath, file, subpath, height, ctx, el, sourceOffset,
   ).then((outcome) => {
     if (outcome === 'ambiguous') {
       new Notice(
         'Drawio: several identical embeds match this insertion. ' +
-        'Resize it in Reading view or give the links distinct page subpaths.',
+        'Resize it in the editing view or give the links distinct page subpaths.',
+      );
+    } else if (outcome === 'unsupported') {
+      new Notice(
+        'Drawio: this embed sits in a table or list where a height comment ' +
+        'cannot be inserted safely; viewer height was not saved.',
       );
     } else if (outcome === 'no-match') {
       new Notice('Drawio: could not locate this embed in the note; viewer height was not saved.');
@@ -457,14 +535,15 @@ function commitEmbedHeight(
 
 function scheduleStoredEmbedHeight(
   plugin: DrawioPlugin,
-  interactive: InteractiveViewerController,
+  interactive: InteractiveMountHandle,
   sourcePath: string | undefined,
   file: TFile,
   subpath: string | undefined,
   ctx: MarkdownPostProcessorContext | undefined,
   el: HTMLElement,
 ): void {
-  if (!sourcePath) return;
+  // Lazily mounted handles read the persisted height at activation instead.
+  if (!sourcePath || !interactive.controller) return;
   const run = () => applyStoredEmbedHeight(
     plugin, interactive, sourcePath, file, subpath, ctx, el,
   );
@@ -475,46 +554,21 @@ function scheduleStoredEmbedHeight(
 
 function applyStoredEmbedHeight(
   plugin: DrawioPlugin,
-  interactive: InteractiveViewerController,
+  interactive: InteractiveMountHandle,
   sourcePath: string,
   file: TFile,
   subpath: string | undefined,
   ctx: MarkdownPostProcessorContext | undefined,
   el: HTMLElement,
 ): void {
+  const controller = interactive.controller;
+  if (!controller) return;
   if (resolveClickAction(plugin.settings.previewClickAction, 'file').kind !== 'interactive') return;
   void readEmbedViewportHeight(
-    plugin.app, sourcePath, file, subpath, ctx, el,
-    getEmbedOccurrence(el), getLivePreviewSourceOffset(el),
+    plugin.app, sourcePath, file, subpath, ctx, el, getLivePreviewSourceOffset(el),
   ).then((height) => {
-    if (height !== null) interactive.applyPersistedHeight(height);
+    if (height !== null) controller.applyPersistedHeight(height);
   }).catch(() => { /* Keep the already rendered automatic height. */ });
-}
-
-function markEmbedInsertion(
-  el: HTMLElement,
-  sourcePath: string,
-  file: TFile,
-  subpath: string | undefined,
-): void {
-  el.dataset.drawioInsertionKey = JSON.stringify([
-    sourcePath,
-    file.path,
-    subpath?.replace(/^#/, '') ?? '',
-  ]);
-}
-
-function getEmbedOccurrence(el: HTMLElement): number {
-  const key = el.dataset.drawioInsertionKey;
-  if (!key) return 0;
-  const scope = el.closest<HTMLElement>(
-    '.markdown-preview-view, .markdown-source-view, .workspace-leaf-content',
-  ) ?? el.parentElement;
-  if (!scope) return 0;
-  const peers = Array.from(scope.querySelectorAll<HTMLElement>('.drawio-embed'))
-    .filter((candidate) => candidate.dataset.drawioInsertionKey === key);
-  const index = peers.indexOf(el);
-  return index === -1 ? 0 : index;
 }
 
 function getLivePreviewSourceOffset(el: HTMLElement): number | undefined {

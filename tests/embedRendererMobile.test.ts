@@ -262,26 +262,78 @@ describe('drawio embed — mobile click behavior', () => {
     raf.mockRestore();
   });
 
-  it('passes the duplicate embed occurrence from the current Markdown surface', async () => {
+  it('does not construct the interactive controller outside Interactive Viewer mode', async () => {
+    Platform.isDesktopApp = true;
+    const { plugin, create } = fakePlugin(vi.fn(), 'editor');
+    registerDrawioEmbeds(plugin);
+    const containerEl = document.createElement('div');
+    await create(containerEl, 'note.md').loadFile();
+    expect(containerEl.querySelector('.drawio-interactive-toolbar')).toBeNull();
+    expect(containerEl.classList.contains('drawio-interactive')).toBe(false);
+  });
+
+  it('does not leak the previous controller when renders overlap', async () => {
     Platform.isDesktopApp = true;
     const { plugin, create } = fakePlugin(vi.fn(), 'interactive');
     registerDrawioEmbeds(plugin);
-    const surface = document.createElement('div');
-    surface.className = 'markdown-source-view';
-    const firstEl = surface.createDiv();
-    const secondEl = surface.createDiv();
-    await create(firstEl, 'note.md').loadFile();
-    await create(secondEl, 'note.md').loadFile();
+    const containerEl = document.createElement('div');
+    const embed = create(containerEl, 'note.md');
+    const addSpy = vi.spyOn(document, 'addEventListener');
+    const removeSpy = vi.spyOn(document, 'removeEventListener');
+    await Promise.all([embed.loadFile(), embed.loadFile()]);
+    const added = addSpy.mock.calls.filter((call) => call[0] === 'keydown').length;
+    const removed = removeSpy.mock.calls.filter((call) => call[0] === 'keydown').length;
+    addSpy.mockRestore();
+    removeSpy.mockRestore();
+    // Exactly one live controller: the superseded render must not have
+    // constructed (and leaked) a second set of document-level listeners.
+    expect(added - removed).toBe(1);
+    expect(containerEl.querySelectorAll('.drawio-interactive-toolbar')).toHaveLength(1);
+  });
 
-    secondEl.querySelector<HTMLElement>('.drawio-preview')!
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    const handle = secondEl.querySelector<HTMLElement>('.drawio-interactive-resize-handle')!;
-    handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 360 }));
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientY: 520 }));
-    document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientY: 520 }));
+  it('coalesces bursts of note edits into one stored-height read', async () => {
+    Platform.isDesktopApp = true;
+    heightMetadata.read.mockResolvedValue(360);
+    const modifyHandlers: Array<(f: TFile) => void> = [];
+    const openWithDefaultApp = vi.fn();
+    const file = Object.assign(new TFile(), { path: 'diagram.drawio', basename: 'diagram' });
+    let creator: Creator | undefined;
+    const plugin = {
+      app: {
+        embedRegistry: { registerExtension: (_ext: string, c: Creator) => { creator = c; } },
+        vault: {
+          read: async () => XML,
+          on: (_event: string, cb: (f: TFile) => void) => { modifyHandlers.push(cb); return {}; },
+        },
+        openWithDefaultApp,
+      },
+      settings: { previewClickAction: 'interactive', editButtonAction: 'editor' },
+      previewOpts: () => ({ dark: false }),
+      openEditor: vi.fn(),
+      register: vi.fn(),
+    } as unknown as DrawioPlugin;
+    registerDrawioEmbeds(plugin);
+    const containerEl = document.createElement('div');
+    const embed = creator!({ containerEl, sourcePath: 'note.md' }, file, undefined) as unknown as {
+      loadFile: () => Promise<void>; load: () => void; unload: () => void;
+    };
+    embed.load(); // Obsidian loads the embed component, registering vault events
+    await embed.loadFile();
+    heightMetadata.read.mockClear();
 
-    expect(heightMetadata.write).toHaveBeenCalledTimes(1);
-    expect(heightMetadata.write.mock.calls[0]?.[7]).toBe(1);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const note = Object.assign(new TFile(), { path: 'note.md', basename: 'note' });
+      for (let burst = 0; burst < 5; burst += 1) {
+        for (const handler of modifyHandlers) handler(note);
+      }
+      expect(heightMetadata.read).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(300);
+      expect(heightMetadata.read).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+      embed.unload();
+    }
   });
 
   it('shows a Notice instead of opening the editor on mobile, with no edit hint', async () => {
