@@ -131,6 +131,12 @@ describe('DrawioPreviewFileView', () => {
     view.setViewData(MULTI_PAGE_XML, true);
     const preview = view.contentEl.querySelector<HTMLElement>('.drawio-preview')!;
     preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    // Establish a viewport height by resizing (jsdom measures 0, so the
+    // automatic height stays deferred until a real layout or a manual resize).
+    const handle = view.contentEl.querySelector<HTMLElement>('.drawio-interactive-resize-handle')!;
+    handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 100 }));
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientY: 400 }));
+    document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientY: 400 }));
     const height = preview.style.height;
     view.contentEl.querySelectorAll<HTMLButtonElement>('.drawio-page-control button')[1]!.click();
     const replacement = preview.querySelector('svg')!;

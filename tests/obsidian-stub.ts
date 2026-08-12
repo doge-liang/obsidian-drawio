@@ -133,12 +133,44 @@ export class Setting {
   }
 }
 
-export class MarkdownRenderChild {
-  containerEl: HTMLElement;
-  constructor(containerEl: HTMLElement) { this.containerEl = containerEl; }
+// Mirrors obsidian's Component lifecycle contract: `load()` fires `onload`
+// once and cascades to children; `addChild` loads the child immediately when
+// the parent is already loaded; `unload()` runs children, `register`ed
+// callbacks, then `onunload`.
+export class Component {
+  private loaded = false;
+  private children: Component[] = [];
+  private unloadCallbacks: Array<() => void> = [];
+  load(): void {
+    if (this.loaded) return;
+    this.loaded = true;
+    this.onload();
+    for (const child of this.children) child.load();
+  }
+  unload(): void {
+    if (!this.loaded) return;
+    this.loaded = false;
+    for (const child of this.children.splice(0)) child.unload();
+    for (const cb of this.unloadCallbacks.splice(0)) cb();
+    this.onunload();
+  }
+  addChild<T extends Component>(component: T): T {
+    this.children.push(component);
+    if (this.loaded) component.load();
+    return component;
+  }
+  register(cb: () => void): void { this.unloadCallbacks.push(cb); }
   registerEvent(_ref: unknown): void {}
   onload(): void {}
   onunload(): void {}
+}
+
+export class MarkdownRenderChild extends Component {
+  containerEl: HTMLElement;
+  constructor(containerEl: HTMLElement) {
+    super();
+    this.containerEl = containerEl;
+  }
 }
 
 /** Split "path#subpath" — subpath keeps its leading '#', '' when absent. */

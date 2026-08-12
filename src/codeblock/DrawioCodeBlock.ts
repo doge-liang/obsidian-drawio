@@ -3,7 +3,8 @@ import { renderPreview } from '../preview/ViewerRenderer';
 import { renderPageControl } from '../preview/pageControl';
 import { addEditHint } from '../preview/editHint';
 import { resolveClickAction, resolveEditButtonAction } from '../preview/clickAction';
-import { InteractiveViewerController } from '../preview/interactiveViewer';
+import { mountInteractiveViewer, type InteractiveMountHandle } from '../preview/interactiveMount';
+import { SectionLifecycle } from '../preview/sectionLifecycle';
 import {
   readCodeBlockViewportHeight, writeCodeBlockViewportHeight,
 } from '../preview/viewportHeight';
@@ -23,9 +24,15 @@ async function renderCodeBlock(
   ctx: MarkdownPostProcessorContext,
 ): Promise<void> {
   const action = resolveClickAction(plugin.settings.previewClickAction, 'codeblock');
-  const initialHeight = Platform.isDesktopApp && action.kind === 'interactive'
-    ? await readCodeBlockViewportHeight(plugin.app, ctx, el, source)
-    : null;
+  let initialHeight: number | null = null;
+  if (Platform.isDesktopApp && action.kind === 'interactive') {
+    try {
+      initialHeight = await readCodeBlockViewportHeight(plugin.app, ctx, el, source);
+    } catch {
+      // A failed metadata read must never abort rendering the diagram itself.
+      initialHeight = null;
+    }
+  }
   const wrapper = el.createDiv({ cls: 'drawio-codeblock' });
   wrapper.setAttribute('title', Platform.isDesktopApp ? action.title : 'Drawio diagram');
   wrapper.toggleClass('drawio-no-action', Platform.isDesktopApp && action.kind === 'none');
@@ -34,7 +41,7 @@ async function renderCodeBlock(
   const wrapped = ensureMxfile(source);
   const pages = getDiagramPages(wrapped);
   let currentPage = 0;
-  let interactive: InteractiveViewerController | null = null;
+  let interactive: InteractiveMountHandle | null = null;
   renderPreview(preview, source, { ...plugin.previewOpts(), page: currentPage });
 
   if (pages.length > 1) {
@@ -55,26 +62,36 @@ async function renderCodeBlock(
   }
 
   if (Platform.isDesktopApp) {
-    interactive = new InteractiveViewerController(wrapper, preview, {
-      isEnabled: () =>
-        resolveClickAction(plugin.settings.previewClickAction, 'codeblock').kind === 'interactive',
-      initialHeight: initialHeight ?? undefined,
-      onHeightCommit: (height) => {
-        void writeCodeBlockViewportHeight(plugin.app, ctx, el, source, height).then((written) => {
-          if (!written) new Notice('Drawio: could not save the viewer height for this code block.');
-        }).catch((err) => {
-          new Notice(`Drawio: could not save viewer height — ${String(err)}`);
-        });
-      },
-      onEdit: () => {
-        const editAction = resolveEditButtonAction(plugin.settings.editButtonAction, 'codeblock');
-        if (editAction.kind === 'editor') {
-          plugin.openEditor(new CodeBlockSource(plugin.app, ctx, el, source));
-        }
-      },
+    // The section may have been torn down while the stored-height read above
+    // was in flight (a child added to an unloaded owner is stored but never
+    // loaded, so nothing registered then would ever be disposed). Mount only
+    // once Obsidian actually loads this section's children, and tie disposal
+    // to the section's unload.
+    const lifecycle = new SectionLifecycle(wrapper);
+    ctx.addChild(lifecycle);
+    lifecycle.whenReady(() => {
+      const handle = mountInteractiveViewer(wrapper, preview, {
+        isEnabled: () =>
+          resolveClickAction(plugin.settings.previewClickAction, 'codeblock').kind === 'interactive',
+        initialHeight: initialHeight ?? undefined,
+        loadPersistedHeight: () => readCodeBlockViewportHeight(plugin.app, ctx, el, source),
+        onHeightCommit: (height) => {
+          void writeCodeBlockViewportHeight(plugin.app, ctx, el, source, height).then((written) => {
+            if (!written) new Notice('Drawio: could not save the viewer height for this code block.');
+          }).catch((err) => {
+            new Notice(`Drawio: could not save viewer height — ${String(err)}`);
+          });
+        },
+        onEdit: () => {
+          const editAction = resolveEditButtonAction(plugin.settings.editButtonAction, 'codeblock');
+          if (editAction.kind === 'editor') {
+            plugin.openEditor(new CodeBlockSource(plugin.app, ctx, el, source));
+          }
+        },
+      });
+      interactive = handle;
+      lifecycle.register(() => handle.dispose());
     });
-    interactive.bindSvg(preview.querySelector('svg'));
-    ctx.addChild(interactive);
   }
 
   // Click anywhere on the diagram (the centered hint shows on hover). The

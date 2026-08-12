@@ -4,7 +4,7 @@ import { renderPreview } from './ViewerRenderer';
 import { renderPageControl } from './pageControl';
 import { addEditHint } from './editHint';
 import { resolveClickAction, resolveEditButtonAction, openWithDefaultApp } from './clickAction';
-import { InteractiveViewerController } from './interactiveViewer';
+import { mountInteractiveViewer, type InteractiveMountHandle } from './interactiveMount';
 import { getDiagramPages, ensureMxfile } from '../model/xmlUtils';
 import { FileSource } from '../file/FileSource';
 import type DrawioPlugin from '../main';
@@ -17,7 +17,7 @@ import type DrawioPlugin from '../main';
  * follows the "Preview click action" setting.
  */
 export class DrawioPreviewFileView extends TextFileView {
-  private interactive: InteractiveViewerController | null = null;
+  private interactive: InteractiveMountHandle | null = null;
 
   constructor(leaf: WorkspaceLeaf, private plugin: DrawioPlugin) {
     super(leaf);
@@ -85,7 +85,7 @@ export class DrawioPreviewFileView extends TextFileView {
       addEditHint(previewWrap, action.hint.label, action.hint.icon);
     }
     if (Platform.isDesktopApp) {
-      this.interactive = new InteractiveViewerController(c, preview, {
+      this.interactive = mountInteractiveViewer(c, preview, {
         isEnabled: () =>
           resolveClickAction(this.plugin.settings.previewClickAction, 'file').kind === 'interactive',
         onEdit: () => {
@@ -98,7 +98,6 @@ export class DrawioPreviewFileView extends TextFileView {
           }
         },
       });
-      this.interactive.bindSvg(preview.querySelector('svg'));
     }
   }
 
