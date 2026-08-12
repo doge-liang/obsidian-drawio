@@ -683,6 +683,120 @@ describe('InteractiveViewerController walking skeleton', () => {
     controller.dispose();
   });
 
+  it('does not re-apply the viewport on window resize after the viewer is disabled', () => {
+    const root = document.body.createDiv({ cls: 'drawio-codeblock' });
+    const preview = root.createDiv({ cls: 'drawio-preview' });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 200 100');
+    preview.appendChild(svg);
+    let enabled = true;
+    const controller = new InteractiveViewerController(root, preview, { isEnabled: () => enabled });
+    controller.bindSvg(svg); // jsdom measures 0 — stays deferred
+    vi.spyOn(preview, 'getBoundingClientRect').mockReturnValue({
+      left: 0, top: 0, width: 600, height: 100, right: 600, bottom: 100, x: 0, y: 0,
+      toJSON: () => ({}),
+    });
+
+    enabled = false;
+    window.dispatchEvent(new Event('resize'));
+    expect(preview.style.height).toBe('');
+    expect(preview.classList.contains('drawio-interactive-viewport')).toBe(false);
+
+    enabled = true;
+    window.dispatchEvent(new Event('resize'));
+    expect(preview.style.height).toBe('300px');
+    controller.dispose();
+  });
+
+  it('rebinds document listeners from the toolbar after a no-click popout adoption', () => {
+    const { root, preview, controller } = fixture();
+    preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(controller.isActive).toBe(true);
+
+    // "Move to new window" relocates the pane without any prior interaction.
+    const popoutDoc = document.implementation.createHTMLDocument('popout');
+    popoutDoc.body.appendChild(root);
+    root.querySelector<HTMLButtonElement>('[aria-label="Zoom in"]')!.click();
+
+    // The original document lost control; the adopting one gained it.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(controller.isActive).toBe(true);
+    popoutDoc.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(controller.isActive).toBe(false);
+    controller.dispose();
+  });
+
+  it('judges the resize threshold by pointer travel and leaves the viewport untouched below it', () => {
+    const root = document.body.createDiv({ cls: 'drawio-codeblock' });
+    const preview = root.createDiv({ cls: 'drawio-preview' });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 200 100');
+    preview.appendChild(svg);
+    const onHeightCommit = vi.fn();
+    const controller = new InteractiveViewerController(root, preview, { onHeightCommit });
+    controller.bindSvg(svg);
+    vi.spyOn(preview, 'getBoundingClientRect').mockReturnValue({
+      left: 0, top: 0, width: 600, height: 300, right: 600, bottom: 300, x: 0, y: 0,
+      toJSON: () => ({}),
+    });
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    root.querySelector<HTMLButtonElement>('[aria-label="Zoom in"]')!.click();
+    frames.shift()!(0);
+    const zoomed = svg.getAttribute('viewBox');
+
+    // Simulate an out-of-range start height (SVG without usable viewBox
+    // metrics): a 1px wiggle must not let the clamp difference commit.
+    preview.style.height = '30px';
+    const handle = root.querySelector<HTMLElement>('.drawio-interactive-resize-handle')!;
+    handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 100 }));
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientY: 101 }));
+    document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientY: 101 }));
+
+    expect(onHeightCommit).not.toHaveBeenCalled();
+    expect(preview.style.height).toBe('30px'); // untouched — no clamp jump
+    expect(frames).toHaveLength(0); // no fit(): the zoom survives a click
+    expect(svg.getAttribute('viewBox')).toBe(zoomed);
+    controller.dispose();
+    raf.mockRestore();
+  });
+
+  it('initializes the deferred automatic height at the first real layout (ResizeObserver)', () => {
+    const callbacks: Array<() => void> = [];
+    const observed: Element[] = [];
+    const disconnect = vi.fn();
+    class FakeResizeObserver {
+      constructor(private cb: () => void) {
+        callbacks.push(() => { this.cb(); });
+      }
+      observe(el: Element): void { observed.push(el); }
+      disconnect = disconnect;
+      unobserve(): void { /* not used */ }
+    }
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    try {
+      const { preview, controller } = fixture(); // width 0: defers, arms the observer
+      expect(observed).toContain(preview);
+      expect(preview.style.height).toBe('');
+
+      vi.spyOn(preview, 'getBoundingClientRect').mockReturnValue({
+        left: 0, top: 0, width: 600, height: 100, right: 600, bottom: 100, x: 0, y: 0,
+        toJSON: () => ({}),
+      });
+      callbacks[0]!();
+      expect(preview.style.height).toBe('300px');
+      expect(preview.classList.contains('drawio-interactive-viewport')).toBe(true);
+      expect(disconnect).toHaveBeenCalled();
+      controller.dispose();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('ignores right-button presses for activation and panning', () => {
     const { preview, controller } = fixture();
     preview.dispatchEvent(new MouseEvent('pointerdown', {

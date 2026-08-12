@@ -69,6 +69,8 @@ export class InteractiveViewerController extends MarkdownRenderChild {
   private panStartX = 0;
   private panStartY = 0;
   private panStartBox: ViewBox | null = null;
+  /** Watches a detached/hidden preview until layout gives it a real width. */
+  private measureObserver: ResizeObserver | null = null;
 
   constructor(
     private root: HTMLElement,
@@ -96,10 +98,7 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.manuallyResized = true;
     if (this.viewportInitialized && Math.abs(this.viewportHeight - next) < 0.5) return;
     if (!this.svg || !this.baseBox) return;
-    this.preview.classList.add('drawio-interactive-viewport');
-    this.svg.classList.add('drawio-interactive-svg');
-    this.setViewportHeight(next);
-    this.viewportInitialized = true;
+    this.applyViewport(this.svg, next);
     this.fit();
   }
 
@@ -122,10 +121,7 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.updateControls();
     if (this.opts.isEnabled?.() === false) return;
     if (preservedHeight !== null && svg && this.baseBox) {
-      this.preview.classList.add('drawio-interactive-viewport');
-      svg.classList.add('drawio-interactive-svg');
-      this.setViewportHeight(preservedHeight);
-      this.viewportInitialized = true;
+      this.applyViewport(svg, preservedHeight);
       return;
     }
     this.initializeViewport();
@@ -171,6 +167,7 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.doc.removeEventListener('pointercancel', this.onResizeEnd);
     this.doc.removeEventListener('pointermove', this.onPanMove);
     this.doc.removeEventListener('pointerup', this.onPanEnd);
+    this.disconnectMeasureObserver();
     this.cancelFrame();
     this.toolbar.remove();
     this.resizeHandle.remove();
@@ -215,7 +212,13 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     if (current === this.doc) return;
     this.removeDocumentListeners(this.doc);
     this.doc = current;
-    if (!this.disposed) this.addDocumentListeners(current);
+    if (this.disposed) return;
+    this.addDocumentListeners(current);
+    // A ResizeObserver belongs to one window; re-arm it from the new one.
+    if (this.measureObserver) {
+      this.disconnectMeasureObserver();
+      this.observeUntilMeasurable();
+    }
   }
 
   private createToolbar(): HTMLElement {
@@ -263,6 +266,10 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     button.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
+      // A pane can move into a popout without any prior rebinding interaction
+      // (e.g. the "Move to new window" command while the viewer is active) —
+      // and this handler's stopPropagation keeps onRootClick from rebinding.
+      this.rebindIfDocumentChanged();
       action();
     });
     return button;
@@ -411,15 +418,21 @@ export class InteractiveViewerController extends MarkdownRenderChild {
   };
 
   private onResizeMove = (event: PointerEvent): void => {
+    // Judge the gesture by raw pointer travel, not by the clamped height
+    // delta (clamping an out-of-range start height would inflate a 1px
+    // wiggle past the threshold) — and until the drag engages, leave the
+    // viewport completely untouched so a click never disturbs the zoom.
+    if (!this.resizeMoved
+        && Math.abs(event.clientY - this.resizeStartY) < RESIZE_COMMIT_THRESHOLD) {
+      return;
+    }
+    this.resizeMoved = true;
+    this.manuallyResized = true;
     const height = clamp(
       this.resizeStartHeight + event.clientY - this.resizeStartY,
       MIN_VIEWPORT_HEIGHT,
       MAX_VIEWPORT_HEIGHT,
     );
-    if (Math.abs(height - this.resizeStartHeight) >= RESIZE_COMMIT_THRESHOLD) {
-      this.resizeMoved = true;
-      this.manuallyResized = true;
-    }
     // An explicit user height IS a viewport — initialize from it even when
     // the automatic measurement was deferred (detached render).
     if (this.svg) this.applyViewport(this.svg, height);
@@ -439,7 +452,10 @@ export class InteractiveViewerController extends MarkdownRenderChild {
   };
 
   private onWindowResize = (): void => {
-    if (!this.manuallyResized) this.initializeViewport(true);
+    // Same isEnabled gate as every other entry point: after the click action
+    // is switched away, a window resize must not re-apply the viewport.
+    if (this.manuallyResized || this.opts.isEnabled?.() === false) return;
+    this.initializeViewport(true);
   };
 
   private initializeViewport(force = false): void {
@@ -456,9 +472,11 @@ export class InteractiveViewerController extends MarkdownRenderChild {
       || this.root.getBoundingClientRect().width;
     if (width <= 0) {
       // Detached or hidden (code blocks and Reading-view sections render
-      // detached): measuring now would produce a bogus height. Stay
-      // uninitialized — activation and window resizes re-enter here once the
-      // element is laid out.
+      // detached): measuring now would produce a bogus height. Watch for the
+      // first real layout instead — otherwise a tall diagram renders at full
+      // height until the user clicks or resizes the OS window (Obsidian pane
+      // drags don't fire window resize, and PDF export never clicks).
+      this.observeUntilMeasurable();
       return;
     }
     const availableHeight = Math.max(1, win.innerHeight);
@@ -470,7 +488,30 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.applyViewport(svg, height);
   }
 
+  private observeUntilMeasurable(): void {
+    const win = this.doc.defaultView;
+    if (!win || this.measureObserver || typeof win.ResizeObserver !== 'function') return;
+    this.measureObserver = new win.ResizeObserver(() => {
+      if (this.disposed || this.viewportInitialized || this.manuallyResized
+          || this.opts.isEnabled?.() === false) {
+        this.disconnectMeasureObserver();
+        return;
+      }
+      const width = this.preview.getBoundingClientRect().width
+        || this.root.getBoundingClientRect().width;
+      if (width <= 0) return;
+      this.initializeViewport();
+    });
+    this.measureObserver.observe(this.preview);
+  }
+
+  private disconnectMeasureObserver(): void {
+    this.measureObserver?.disconnect();
+    this.measureObserver = null;
+  }
+
   private applyViewport(svg: SVGSVGElement, height: number): void {
+    this.disconnectMeasureObserver();
     this.preview.classList.add('drawio-interactive-viewport');
     svg.classList.add('drawio-interactive-svg');
     this.setViewportHeight(height);
