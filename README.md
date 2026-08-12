@@ -8,7 +8,7 @@
 
 Embed, preview, and edit [draw.io](https://www.drawio.com/) (diagrams.net) diagrams directly in your notes. Previews render fully offline on every platform, and diagrams are stored as readable, diff-friendly XML.
 
-![Embed preview with the multi-page switcher](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/hero.png)
+![Demo: hover an embedded diagram to edit, flip its pages, then open the full drawio editor right inside Obsidian](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/demo.gif)
 
 ## Highlights
 

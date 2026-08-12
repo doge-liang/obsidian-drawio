@@ -8,7 +8,7 @@
 
 在笔记中直接嵌入、预览并编辑 [draw.io](https://www.drawio.com/)（diagrams.net）图表。预览在所有平台上完全离线渲染，图表以可读、便于 diff 的 XML 形式存储。
 
-![带多页翻页控件的嵌入预览](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/hero.png)
+![演示：悬停内嵌图表出现编辑提示，翻页浏览多页，然后在 Obsidian 内直接打开完整的 drawio 编辑器](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/demo.gif)
 
 ## 亮点
 
