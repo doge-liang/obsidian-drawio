@@ -15,7 +15,16 @@ vi.mock('../src/preview/ViewerRenderer', () => ({
   },
 }));
 const heightMetadata = vi.hoisted(() => ({
-  read: vi.fn((_app: unknown, _sourcePath: string) => Promise.resolve<number | null>(null)),
+  read: vi.fn((
+    _app: unknown,
+    _sourcePath: string,
+    _file?: unknown,
+    _subpath?: string,
+    _ctx?: unknown,
+    _el?: HTMLElement,
+    _sourceOffset?: number,
+    _occurrence?: number,
+  ) => Promise.resolve<number | null>(null)),
   write: vi.fn((
     _app: unknown,
     _sourcePath: string,
@@ -24,7 +33,7 @@ const heightMetadata = vi.hoisted(() => ({
     _height: number,
     _ctx?: unknown,
     _el?: HTMLElement,
-    _occurrence?: number,
+    _sourceOffset?: number,
   ) => Promise.resolve<'written'>('written')),
 }));
 vi.mock('../src/preview/embedViewportHeight', () => ({
@@ -289,6 +298,46 @@ describe('drawio embed — mobile click behavior', () => {
     // constructed (and leaked) a second set of document-level listeners.
     expect(added - removed).toBe(1);
     expect(containerEl.querySelectorAll('.drawio-interactive-toolbar')).toHaveLength(1);
+  });
+
+  it('renders nothing new after the embed component unloads mid-flight (pin/unload race)', async () => {
+    Platform.isDesktopApp = true;
+    const { plugin, create } = fakePlugin(vi.fn(), 'interactive');
+    registerDrawioEmbeds(plugin);
+    const containerEl = document.createElement('div');
+    const embed = create(containerEl, 'note.md') as unknown as {
+      loadFile: () => Promise<void>; load: () => void; unload: () => void;
+    };
+    embed.load();
+    await embed.loadFile();
+    expect(containerEl.querySelector('.drawio-interactive-toolbar')).not.toBeNull();
+
+    const addSpy = vi.spyOn(document, 'addEventListener');
+    embed.unload();
+    // A caller holding an await (e.g. pin()) resumes and re-renders after
+    // the unload — this must be a no-op, not a fresh controller mount.
+    await embed.loadFile();
+    const added = addSpy.mock.calls.filter((call) => call[0] === 'keydown').length;
+    addSpy.mockRestore();
+    expect(added).toBe(0);
+    expect(containerEl.querySelector('.drawio-interactive-toolbar')).toBeNull();
+  });
+
+  it('passes the render-surface occurrence when reading duplicate embed heights', async () => {
+    Platform.isDesktopApp = true;
+    const { plugin, create } = fakePlugin(vi.fn(), 'interactive');
+    registerDrawioEmbeds(plugin);
+    const surface = document.createElement('div');
+    surface.className = 'markdown-preview-view';
+    const firstEl = surface.createDiv();
+    const secondEl = surface.createDiv();
+    await create(firstEl, 'note.md').loadFile();
+    await create(secondEl, 'note.md').loadFile();
+
+    // The initial stored-height READ carries the DOM occurrence so persisted
+    // heights of otherwise-identical Reading-view duplicates keep applying.
+    expect(heightMetadata.read.mock.calls[0]?.[7]).toBe(0);
+    expect(heightMetadata.read.mock.calls[1]?.[7]).toBe(1);
   });
 
   it('coalesces bursts of note edits into one stored-height read', async () => {

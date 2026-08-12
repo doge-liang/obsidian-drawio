@@ -86,4 +86,24 @@ describe('interactive embed fallback renderer', () => {
     expect(preview.style.height).toBe(height);
     expect(span.classList.contains('drawio-interactive-active')).toBe(false);
   });
+
+  it('mounts once the section load arrives, even after the async render finished', async () => {
+    const { processor } = harness();
+    const section = document.body.createDiv();
+    const span = section.createSpan({ cls: 'internal-embed' });
+    span.setAttribute('src', 'diagram.drawio');
+    // Obsidian stores the child now and dispatches its load later — e.g.
+    // when the render's awaits complete before the section's own load.
+    let pending: { load: () => void } | null = null;
+    const addChild = vi.fn((child: unknown) => { pending = child as { load: () => void }; });
+    processor()(section, { sourcePath: 'note.md', addChild });
+    await tick();
+    expect(span.classList.contains('drawio-interactive')).toBe(false);
+
+    pending!.load();
+    expect(span.classList.contains('drawio-interactive')).toBe(true);
+    span.querySelector<HTMLElement>('.drawio-preview')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(span.classList.contains('drawio-interactive-active')).toBe(true);
+  });
 });

@@ -37,9 +37,11 @@ function fakePlugin(
   };
   return {
     plugin: raw as unknown as DrawioPlugin,
+    // Load added children the way Obsidian's real ctx.addChild does for a
+    // live section — the interactive mount is queued on that load.
     run: async (source: string, el: HTMLElement, ctx: unknown) => processor!(source, el, {
       ...(ctx as object),
-      addChild: vi.fn(),
+      addChild: vi.fn((child: unknown) => { (child as { load?: () => void }).load?.(); }),
     }),
   };
 }
@@ -200,6 +202,60 @@ describe('drawio code block — mobile click behavior', () => {
     expect(wrapper.querySelector('.drawio-interactive-toolbar')).not.toBeNull();
     await new Promise((resolve) => { window.setTimeout(resolve, 0); });
     expect(preview.style.height).toBe('333px');
+  });
+
+  it('never mounts the controller when the owning section is already torn down', async () => {
+    Platform.isDesktopApp = true;
+    const { plugin } = fakePlugin(vi.fn(), 'interactive');
+    let processor: ((s: string, e: HTMLElement, c: unknown) => void | Promise<void>) | undefined;
+    (plugin as unknown as {
+      registerMarkdownCodeBlockProcessor: (lang: string, cb: Processor) => void;
+    }).registerMarkdownCodeBlockProcessor = (_lang, cb) => { processor = cb; };
+    registerDrawioCodeBlock(plugin);
+    const el = document.createElement('div');
+    const addSpy = vi.spyOn(document, 'addEventListener');
+    // addChild stores the child but never loads it — exactly what Obsidian
+    // does when the section was unloaded while the processor awaited.
+    await processor!(XML, el, { sourcePath: 'note.md', addChild: vi.fn() });
+    const added = addSpy.mock.calls.filter((call) => call[0] === 'keydown').length;
+    addSpy.mockRestore();
+    expect(added).toBe(0);
+    expect(el.querySelector('.drawio-interactive-toolbar')).toBeNull();
+    expect(el.querySelector<HTMLElement>('.drawio-codeblock')!.classList.contains('drawio-interactive'))
+      .toBe(false);
+  });
+
+  it('constructs lazily on a drag start (pointerdown), matching eager activation', async () => {
+    Platform.isDesktopApp = true;
+    const { plugin, run } = fakePlugin(vi.fn(), 'editor');
+    registerDrawioCodeBlock(plugin);
+    const el = document.createElement('div');
+    await run(XML, el, { sourcePath: 'note.md' });
+    const wrapper = el.querySelector<HTMLElement>('.drawio-codeblock')!;
+    plugin.settings.previewClickAction = 'interactive';
+    wrapper.querySelector<HTMLElement>('.drawio-preview')!
+      .dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+    expect(wrapper.classList.contains('drawio-interactive-active')).toBe(true);
+  });
+
+  it('keeps the lazy listeners armed while the preview has no SVG yet', async () => {
+    Platform.isDesktopApp = true;
+    const { plugin, run } = fakePlugin(vi.fn(), 'editor');
+    registerDrawioCodeBlock(plugin);
+    const el = document.createElement('div');
+    await run(XML, el, { sourcePath: 'note.md' });
+    const wrapper = el.querySelector<HTMLElement>('.drawio-codeblock')!;
+    const preview = wrapper.querySelector<HTMLElement>('.drawio-preview')!;
+    plugin.settings.previewClickAction = 'interactive';
+
+    const svg = preview.querySelector('svg')!;
+    svg.remove(); // deferred render: nothing to bind yet
+    preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(wrapper.classList.contains('drawio-interactive')).toBe(false);
+
+    preview.appendChild(svg); // render finalized — the same listeners still work
+    preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(wrapper.classList.contains('drawio-interactive-active')).toBe(true);
   });
 
   it('shows a Notice instead of opening the editor on mobile, with no edit hint', async () => {

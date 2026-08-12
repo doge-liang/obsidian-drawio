@@ -4,6 +4,7 @@ import { renderPageControl } from '../preview/pageControl';
 import { addEditHint } from '../preview/editHint';
 import { resolveClickAction, resolveEditButtonAction } from '../preview/clickAction';
 import { mountInteractiveViewer, type InteractiveMountHandle } from '../preview/interactiveMount';
+import { SectionLifecycle } from '../preview/sectionLifecycle';
 import {
   readCodeBlockViewportHeight, writeCodeBlockViewportHeight,
 } from '../preview/viewportHeight';
@@ -61,25 +62,35 @@ async function renderCodeBlock(
   }
 
   if (Platform.isDesktopApp) {
-    interactive = mountInteractiveViewer(wrapper, preview, {
-      isEnabled: () =>
-        resolveClickAction(plugin.settings.previewClickAction, 'codeblock').kind === 'interactive',
-      initialHeight: initialHeight ?? undefined,
-      loadPersistedHeight: () => readCodeBlockViewportHeight(plugin.app, ctx, el, source),
-      onHeightCommit: (height) => {
-        void writeCodeBlockViewportHeight(plugin.app, ctx, el, source, height).then((written) => {
-          if (!written) new Notice('Drawio: could not save the viewer height for this code block.');
-        }).catch((err) => {
-          new Notice(`Drawio: could not save viewer height — ${String(err)}`);
-        });
-      },
-      onEdit: () => {
-        const editAction = resolveEditButtonAction(plugin.settings.editButtonAction, 'codeblock');
-        if (editAction.kind === 'editor') {
-          plugin.openEditor(new CodeBlockSource(plugin.app, ctx, el, source));
-        }
-      },
-      onController: (controller) => { ctx.addChild(controller); },
+    // The section may have been torn down while the stored-height read above
+    // was in flight (a child added to an unloaded owner is stored but never
+    // loaded, so nothing registered then would ever be disposed). Mount only
+    // once Obsidian actually loads this section's children, and tie disposal
+    // to the section's unload.
+    const lifecycle = new SectionLifecycle(wrapper);
+    ctx.addChild(lifecycle);
+    lifecycle.whenReady(() => {
+      const handle = mountInteractiveViewer(wrapper, preview, {
+        isEnabled: () =>
+          resolveClickAction(plugin.settings.previewClickAction, 'codeblock').kind === 'interactive',
+        initialHeight: initialHeight ?? undefined,
+        loadPersistedHeight: () => readCodeBlockViewportHeight(plugin.app, ctx, el, source),
+        onHeightCommit: (height) => {
+          void writeCodeBlockViewportHeight(plugin.app, ctx, el, source, height).then((written) => {
+            if (!written) new Notice('Drawio: could not save the viewer height for this code block.');
+          }).catch((err) => {
+            new Notice(`Drawio: could not save viewer height — ${String(err)}`);
+          });
+        },
+        onEdit: () => {
+          const editAction = resolveEditButtonAction(plugin.settings.editButtonAction, 'codeblock');
+          if (editAction.kind === 'editor') {
+            plugin.openEditor(new CodeBlockSource(plugin.app, ctx, el, source));
+          }
+        },
+      });
+      interactive = handle;
+      lifecycle.register(() => handle.dispose());
     });
   }
 
