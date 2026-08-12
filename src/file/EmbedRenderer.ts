@@ -12,6 +12,8 @@ import {
 } from '../preview/embedViewportHeight';
 import { getDiagramPages, resolvePageFromSubpath, ensureMxfile, type DiagramPage } from '../model/xmlUtils';
 import { FileSource } from './FileSource';
+import { DualFormatFileSource } from './DualFormatFileSource';
+import { dualFormatOf } from '../model/dualFormat';
 import { DRAWIO_FILE_EXT } from '../constants';
 import { pinEmbedPage } from './pinEmbedPage';
 import type DrawioPlugin from '../main';
@@ -220,6 +222,77 @@ class DrawioFileEmbed extends MarkdownRenderChild {
       await this.render();
     }
   }
+}
+
+/**
+ * Give dual-format image embeds (`![[diagram.drawio.svg]]` / `.drawio.png`) the
+ * same click-to-edit hotspot the other previews have.
+ *
+ * These render through Obsidian's own image embed — a plain `<img>` — so, unlike
+ * `.drawio` embeds, they can't go through the embed registry: that registers by
+ * final extension, and `svg`/`png` belong to every image, not just ours. A
+ * Reading-view markdown post-processor is the right seam: it decorates the
+ * already-rendered image span with the shared click action + hover hint, without
+ * changing how the image itself renders.
+ *
+ * Scope, by design:
+ *  - Reading view only. Post-processors don't run over Live Preview's embed
+ *    widgets; the diagram still shows there (native image), it just isn't
+ *    clickable-to-edit. `.drawio` embeds get both modes only because the embed
+ *    registry does.
+ *  - Desktop only. Editing needs the desktop editor; on mobile the native image
+ *    (with its own tap-to-zoom) is left completely untouched.
+ *  - The **Interactive viewer** click action falls back to the editor here:
+ *    the viewer drives the sanitized SVG previews, and a native `<img>` has
+ *    none to explore.
+ *  - The standalone `.drawio.svg`/`.drawio.png` file tab opens in Obsidian's
+ *    native image view, which we deliberately don't intercept (it would mean
+ *    claiming every `.svg`/`.png`); the "Edit drawio diagram" file-menu item and
+ *    command cover editing there.
+ */
+export function registerDualFormatEmbeds(plugin: DrawioPlugin) {
+  const resolveAction = () => {
+    const action = resolveClickAction(plugin.settings.previewClickAction, 'file');
+    return action.kind === 'interactive' ? resolveClickAction('editor', 'file') : action;
+  };
+  plugin.registerMarkdownPostProcessor((el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+    if (!Platform.isDesktopApp) return;
+    for (const span of Array.from(el.querySelectorAll<HTMLElement>('.internal-embed'))) {
+      if (span.dataset.drawioDualformat === '1') continue;
+      const rawSrc = span.getAttribute('src');
+      if (!rawSrc) continue;
+      // Split off any `#subpath` before the suffix check (dual-format files
+      // have no page anchors today, but be robust to a stray '#').
+      const hashIndex = rawSrc.indexOf('#');
+      const path = hashIndex === -1 ? rawSrc : rawSrc.slice(0, hashIndex);
+      const format = dualFormatOf(path);
+      if (!format) continue;
+      const file = plugin.app.metadataCache.getFirstLinkpathDest(path, ctx.sourcePath);
+      if (!(file instanceof TFile)) continue;
+      span.dataset.drawioDualformat = '1';
+
+      span.addClass('drawio-dualformat-embed');
+      const action = resolveAction();
+      span.setAttribute('title', action.title);
+      span.toggleClass('drawio-no-action', action.kind === 'none');
+      if (action.hint) addEditHint(span, action.hint.label, action.hint.icon);
+
+      // Capture phase so we pre-empt any native click behavior on the <img>
+      // (e.g. lightbox); the action is re-resolved at click time so a settings
+      // change applies to already-decorated embeds.
+      span.addEventListener('click', (e) => {
+        const current = resolveAction();
+        if (current.kind === 'none') return; // leave native image behavior alone
+        e.preventDefault();
+        e.stopPropagation();
+        if (current.kind === 'editor') {
+          plugin.openEditor(new DualFormatFileSource(plugin.app, file, format));
+        } else if (current.kind === 'defaultApp') {
+          openWithDefaultApp(plugin.app, file.path);
+        }
+      }, true);
+    }
+  });
 }
 
 /** Reading-view-only fallback when the embed registry is unavailable. */

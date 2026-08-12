@@ -1,6 +1,10 @@
 /* ---- Inline previews (code blocks & embeds) ---- */
 .drawio-codeblock { position: relative; cursor: pointer; }
 .drawio-embed { position: relative; cursor: pointer; display: inline-block; max-width: 100%; }
+/* Dual-format image embeds (`![[x.drawio.svg]]`): Obsidian renders the native
+   <img>; we only add the click-to-edit hotspot + hover hint on top, so the
+   span needs a positioning context and the pointer affordance. */
+.drawio-dualformat-embed { position: relative; cursor: pointer; }
 .drawio-preview { width: 100%; overflow: auto; text-align: center; }
 /* The extracted SVG carries explicit width/height/viewBox (see ViewerRenderer),
    so it renders at its natural diagram size and scales down to fit; centre it. */
@@ -29,10 +33,13 @@ body.drawio-align-left .drawio-preview svg { margin: 0; }
 .drawio-edit-hint-icon { display: inline-flex; }
 .drawio-codeblock:hover .drawio-edit-hint,
 .drawio-embed:hover .drawio-edit-hint,
+.drawio-dualformat-embed:hover .drawio-edit-hint,
 .drawio-codeblock:focus-within .drawio-edit-hint,
-.drawio-embed:focus-within .drawio-edit-hint { opacity: .92; }
+.drawio-embed:focus-within .drawio-edit-hint,
+.drawio-dualformat-embed:focus-within .drawio-edit-hint { opacity: .92; }
 /* Previews whose click action is "Do nothing" shouldn't advertise clickability. */
-.drawio-codeblock.drawio-no-action, .drawio-embed.drawio-no-action { cursor: default; }
+.drawio-codeblock.drawio-no-action, .drawio-embed.drawio-no-action,
+.drawio-dualformat-embed.drawio-no-action { cursor: default; }
 
 /* Interactive viewer viewport and controls. */
 .drawio-interactive .drawio-preview { user-select: none; }
