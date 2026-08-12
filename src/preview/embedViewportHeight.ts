@@ -1,17 +1,11 @@
-import { App, MarkdownPostProcessorContext, parseLinktext, TFile } from 'obsidian';
+import { App, EmbedCache, MarkdownPostProcessorContext, parseLinktext, TFile } from 'obsidian';
 import { parseViewportHeightComment, upsertViewportHeightComment } from './viewportHeight';
 
-export type EmbedHeightWriteOutcome = 'written' | 'no-match' | 'ambiguous';
-
-interface EmbedCacheItem {
-  link: string;
-  original: string;
-  position: { start: { offset: number }; end: { offset: number } };
-}
+export type EmbedHeightWriteOutcome = 'written' | 'no-match' | 'ambiguous' | 'unsupported';
 
 interface LocatedEmbed {
-  item: EmbedCacheItem;
-  allItems: EmbedCacheItem[];
+  item: EmbedCache;
+  allItems: EmbedCache[];
 }
 
 export async function readEmbedViewportHeight(
@@ -21,15 +15,12 @@ export async function readEmbedViewportHeight(
   subpath?: string,
   ctx?: MarkdownPostProcessorContext,
   el?: HTMLElement,
-  occurrence?: number,
   sourceOffset?: number,
 ): Promise<number | null> {
   const note = app.vault.getAbstractFileByPath(sourcePath);
   if (!(note instanceof TFile)) return null;
   const doc = await app.vault.cachedRead(note);
-  const located = locateEmbed(
-    app, sourcePath, targetFile, subpath, doc, ctx, el, occurrence, sourceOffset,
-  );
+  const located = locateEmbed(app, sourcePath, targetFile, subpath, doc, ctx, el, sourceOffset);
   if (located.outcome !== 'found') return null;
   const offset = resolveCurrentOffset(doc, located.value);
   if (offset === null) return null;
@@ -45,26 +36,39 @@ export async function writeEmbedViewportHeight(
   height: number,
   ctx?: MarkdownPostProcessorContext,
   el?: HTMLElement,
-  occurrence?: number,
   sourceOffset?: number,
 ): Promise<EmbedHeightWriteOutcome> {
   const note = app.vault.getAbstractFileByPath(sourcePath);
   if (!(note instanceof TFile)) return 'no-match';
   const snapshot = await app.vault.cachedRead(note);
-  const located = locateEmbed(
-    app, sourcePath, targetFile, subpath, snapshot, ctx, el, occurrence, sourceOffset,
-  );
+  const located = locateEmbed(app, sourcePath, targetFile, subpath, snapshot, ctx, el, sourceOffset);
   if (located.outcome !== 'found') return located.outcome;
-  let written = false;
+  let outcome: EmbedHeightWriteOutcome = 'no-match';
   await app.vault.process(note, (doc) => {
     const offset = resolveCurrentOffset(doc, located.value);
     if (offset === null) return doc;
-    written = true;
-    return upsertViewportHeightComment(doc, lineAtOffset(doc, offset), height);
+    const updated = upsertViewportHeightComment(doc, lineAtOffset(doc, offset), height);
+    if (updated === null) {
+      // Table row / list-item line: inserting a comment there would corrupt
+      // the note's structure. Skip the write rather than damage the note.
+      outcome = 'unsupported';
+      return doc;
+    }
+    outcome = 'written';
+    return updated;
   });
-  return written ? 'written' : 'no-match';
+  return outcome;
 }
 
+/**
+ * Resolve which embed insertion in the note this render belongs to. Only
+ * reliable signals are used, in order: the Live Preview source offset (from
+ * the CodeMirror DOM position), the Reading-view section range, and finally a
+ * single unambiguous candidate. When several identical embeds remain, the
+ * result is 'ambiguous' and the caller must not write — a DOM-occurrence
+ * index is NOT used as a tiebreaker, because virtualized rendering (Reading
+ * view unloads offscreen sections) makes it point at the wrong insertion.
+ */
 function locateEmbed(
   app: App,
   sourcePath: string,
@@ -73,10 +77,9 @@ function locateEmbed(
   doc: string,
   ctx?: MarkdownPostProcessorContext,
   el?: HTMLElement,
-  occurrence?: number,
   sourceOffset?: number,
 ): { outcome: 'found'; value: LocatedEmbed } | { outcome: 'no-match' | 'ambiguous' } {
-  const embeds = (app.metadataCache.getCache(sourcePath)?.embeds ?? []) as EmbedCacheItem[];
+  const embeds = app.metadataCache.getCache(sourcePath)?.embeds ?? [];
   const expectedSubpath = normalizeSubpath(subpath);
   const candidates = embeds.filter((item) => {
     const parsed = parseLinktext(sourceLinktext(item));
@@ -106,16 +109,12 @@ function locateEmbed(
     }
   }
 
-  if (occurrence !== undefined && candidates[occurrence]) {
-    return { outcome: 'found', value: { item: candidates[occurrence]!, allItems: embeds } };
-  }
-
   return candidates.length === 1
     ? { outcome: 'found', value: { item: candidates[0]!, allItems: embeds } }
     : { outcome: 'ambiguous' };
 }
 
-function sourceLinktext(item: EmbedCacheItem): string {
+function sourceLinktext(item: EmbedCache): string {
   const match = /^!\[\[([\s\S]*?)\]\]$/.exec(item.original.trim());
   if (!match) return item.link;
   return match[1]!.split('|', 1)[0]!.trim();

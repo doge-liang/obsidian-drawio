@@ -80,7 +80,10 @@ describe('embed viewport height Markdown metadata', () => {
     expect(state.text).toBe(text);
   });
 
-  it('writes the selected occurrence when the render surface identifies it', async () => {
+  it('refuses duplicates when only an unreliable DOM position could disambiguate', async () => {
+    // Reading view virtualizes offscreen sections out of the DOM, so a
+    // DOM-occurrence index may point at the wrong insertion — with no other
+    // signal the write must be refused, never guessed.
     const embed = '![[diagram.drawio#Page-1]]';
     const text = `${embed}\nbetween\n${embed}`;
     const secondOffset = text.lastIndexOf(embed);
@@ -89,12 +92,12 @@ describe('embed viewport height Markdown metadata', () => {
       { link: 'diagram.drawio', original: embed, offset: secondOffset },
     ]);
     expect(await writeEmbedViewportHeight(
-      app, 'note.md', target, '#Page-1', 680, undefined, undefined, 1,
-    )).toBe('written');
-    expect(state.text).toBe(`${embed}\nbetween\n<!-- drawio-viewer: height=680 -->\n${embed}`);
+      app, 'note.md', target, '#Page-1', 680,
+    )).toBe('ambiguous');
+    expect(state.text).toBe(text);
   });
 
-  it('uses the Live Preview source offset before the DOM occurrence fallback', async () => {
+  it('uses the Live Preview source offset to disambiguate duplicates', async () => {
     const embed = '![[diagram.drawio#Page-1]]';
     const text = `${embed}\nbetween\n${embed}`;
     const secondOffset = text.lastIndexOf(embed);
@@ -104,9 +107,31 @@ describe('embed viewport height Markdown metadata', () => {
     ]);
     expect(await writeEmbedViewportHeight(
       app, 'note.md', target, '#Page-1', 720,
-      undefined, undefined, 0, secondOffset + 1,
+      undefined, undefined, secondOffset + 1,
     )).toBe('written');
     expect(state.text).toBe(`${embed}\nbetween\n<!-- drawio-viewer: height=720 -->\n${embed}`);
+  });
+
+  it('reproduces the callout prefix when the embed lives in a blockquote', async () => {
+    const embed = '![[diagram.drawio#Page-2]]';
+    const text = `> [!note] Diagram\n> ${embed}\nafter`;
+    const { app, target, state } = harness(text, [
+      { link: 'diagram.drawio#Page-2', original: embed, offset: text.indexOf(embed) },
+    ]);
+    expect(await writeEmbedViewportHeight(app, 'note.md', target, '#Page-2', 400)).toBe('written');
+    expect(state.text).toBe(
+      `> [!note] Diagram\n> <!-- drawio-viewer: height=400 -->\n> ${embed}\nafter`,
+    );
+  });
+
+  it('refuses to write when the embed sits inside a table row', async () => {
+    const embed = '![[diagram.drawio#Page-2]]';
+    const text = `| a | b |\n| - | - |\n| ${embed} | x |`;
+    const { app, target, state } = harness(text, [
+      { link: 'diagram.drawio#Page-2', original: embed, offset: text.indexOf(embed) },
+    ]);
+    expect(await writeEmbedViewportHeight(app, 'note.md', target, '#Page-2', 400)).toBe('unsupported');
+    expect(state.text).toBe(text);
   });
 
   it('uses section info to distinguish identical embeds in Reading view', async () => {
