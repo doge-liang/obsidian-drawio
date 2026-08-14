@@ -56,7 +56,7 @@ describe('drawio code block — mobile click behavior', () => {
   const originalIsDesktopApp = Platform.isDesktopApp;
   afterEach(() => { Platform.isDesktopApp = originalIsDesktopApp; });
 
-  it('opens the editor on click and shows the edit hint on desktop', async () => {
+  it('opens the editor on click on desktop', async () => {
     Platform.isDesktopApp = true;
     const openEditor = vi.fn();
     const { plugin, run } = fakePlugin(openEditor);
@@ -65,7 +65,6 @@ describe('drawio code block — mobile click behavior', () => {
     await run(XML, el, { sourcePath: 'note.md' });
     el.querySelector('.drawio-codeblock')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(openEditor).toHaveBeenCalledTimes(1);
-    expect(el.querySelector('.drawio-edit-hint')).not.toBeNull();
   });
 
   it('still opens the built-in editor under "defaultApp" (code blocks have no file)', async () => {
@@ -79,7 +78,7 @@ describe('drawio code block — mobile click behavior', () => {
     expect(openEditor).toHaveBeenCalledTimes(1);
   });
 
-  it('does nothing on click under "none", with no edit hint', async () => {
+  it('does nothing on click under "none"', async () => {
     Platform.isDesktopApp = true;
     const openEditor = vi.fn();
     const { plugin, run } = fakePlugin(openEditor, 'none');
@@ -88,7 +87,6 @@ describe('drawio code block — mobile click behavior', () => {
     await run(XML, el, { sourcePath: 'note.md' });
     el.querySelector('.drawio-codeblock')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(openEditor).not.toHaveBeenCalled();
-    expect(el.querySelector('.drawio-edit-hint')).toBeNull();
   });
 
   it('mounts the walking skeleton without opening the editor under "interactive"', async () => {
@@ -103,10 +101,8 @@ describe('drawio code block — mobile click behavior', () => {
       .dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(wrapper.classList.contains('drawio-interactive-active')).toBe(true);
     expect(wrapper.querySelector('.drawio-interactive-toolbar')).not.toBeNull();
-    const explore = wrapper.querySelector<HTMLElement>('.drawio-edit-hint')!;
-    expect(explore.hidden).toBe(true);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    expect(explore.hidden).toBe(false);
+    expect(wrapper.classList.contains('drawio-interactive-active')).toBe(false);
     expect(openEditor).not.toHaveBeenCalled();
   });
 
@@ -258,7 +254,7 @@ describe('drawio code block — mobile click behavior', () => {
     expect(wrapper.classList.contains('drawio-interactive-active')).toBe(true);
   });
 
-  it('shows a Notice instead of opening the editor on mobile, with no edit hint', async () => {
+  it('shows a Notice instead of opening the editor on mobile', async () => {
     Platform.isDesktopApp = false;
     const openEditor = vi.fn();
     const { plugin, run } = fakePlugin(openEditor);
@@ -267,6 +263,5 @@ describe('drawio code block — mobile click behavior', () => {
     await run(XML, el, { sourcePath: 'note.md' });
     el.querySelector('.drawio-codeblock')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(openEditor).not.toHaveBeenCalled();
-    expect(el.querySelector('.drawio-edit-hint')).toBeNull();
   });
 });

@@ -3,6 +3,9 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 // Same viewer stub as the other embed tests: keep the module load fast and off
 // the real vendored viewer under jsdom.
 vi.mock('../src/preview/viewer.min.txt', () => ({ default: 'window.GraphViewer = window.GraphViewer || undefined;' }));
+vi.mock('../src/preview/ViewerRenderer', () => ({
+  renderPreview: () => true,
+}));
 
 import { Platform, TFile } from 'obsidian';
 import { registerDualFormatEmbeds } from '../src/file/EmbedRenderer';
@@ -70,7 +73,6 @@ describe('dual-format image embeds — click-to-edit', () => {
     expect(span.classList.contains('drawio-dualformat-embed')).toBe(true);
     expect(span.dataset.drawioDualformat).toBe('1');
     expect(span.getAttribute('title')).toBe('Click to edit diagram');
-    expect(span.querySelector('.drawio-edit-hint')).not.toBeNull();
 
     // A click on the inner <img> is caught by our capture-phase handler.
     img.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -91,7 +93,7 @@ describe('dual-format image embeds — click-to-edit', () => {
     expect(openEditor).not.toHaveBeenCalled();
   });
 
-  it('adds no hint and does nothing on click under "none"', () => {
+  it('does nothing on click under "none"', () => {
     Platform.isDesktopApp = true;
     const { plugin, run, openEditor, openWithDefaultApp } = fakePlugin('none');
     registerDualFormatEmbeds(plugin);
@@ -99,7 +101,6 @@ describe('dual-format image embeds — click-to-edit', () => {
     const { span, img } = makeEmbed('diagram.drawio.svg');
     run(span.parentElement as HTMLElement);
 
-    expect(span.querySelector('.drawio-edit-hint')).toBeNull();
     expect(span.classList.contains('drawio-no-action')).toBe(true);
     img.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(openEditor).not.toHaveBeenCalled();
@@ -154,6 +155,7 @@ describe('dual-format image embeds — click-to-edit', () => {
     const parent = span.parentElement as HTMLElement;
     run(parent);
     run(parent);
-    expect(parent.querySelectorAll('.drawio-edit-hint').length).toBe(1);
+    expect(parent.querySelectorAll('.drawio-dualformat-embed').length).toBe(1);
+    expect(span.dataset.drawioDualformat).toBe('1');
   });
 });

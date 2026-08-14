@@ -5,8 +5,6 @@ export type PreviewSurface = 'codeblock' | 'file';
 
 export interface ResolvedClickAction {
   kind: 'editor' | 'defaultApp' | 'interactive' | 'none';
-  /** Hover-hint label and icon; absent when kind is 'none' (no hint shown). */
-  hint?: { label: string; icon: string };
   /** Tooltip for the preview container. */
   title: string;
 }
@@ -22,20 +20,12 @@ export function resolveClickAction(
 ): ResolvedClickAction {
   if (action === 'none') return { kind: 'none', title: 'Drawio diagram' };
   if (action === 'interactive') {
-    return {
-      kind: 'interactive',
-      hint: { label: 'Explore', icon: 'move' },
-      title: 'Click to explore diagram',
-    };
+    return { kind: 'interactive', title: 'Click to explore diagram' };
   }
   if (action === 'defaultApp' && surface === 'file') {
-    return {
-      kind: 'defaultApp',
-      hint: { label: 'Open', icon: 'external-link' },
-      title: 'Click to open in default app',
-    };
+    return { kind: 'defaultApp', title: 'Click to open in default app' };
   }
-  return { kind: 'editor', hint: { label: 'Edit', icon: 'pencil' }, title: 'Click to edit diagram' };
+  return { kind: 'editor', title: 'Click to edit diagram' };
 }
 
 /** Resolve the explicit Edit button separately from preview activation. */

@@ -1,7 +1,6 @@
 import { MarkdownPostProcessorContext, Notice, Platform } from 'obsidian';
 import { renderPreview } from '../preview/ViewerRenderer';
 import { renderPageControl } from '../preview/pageControl';
-import { addEditHint } from '../preview/editHint';
 import { resolveClickAction, resolveEditButtonAction } from '../preview/clickAction';
 import { mountInteractiveViewer, type InteractiveMountHandle } from '../preview/interactiveMount';
 import { SectionLifecycle } from '../preview/sectionLifecycle';
@@ -57,10 +56,6 @@ async function renderCodeBlock(
     });
   }
 
-  if (Platform.isDesktopApp && action.hint) {
-    addEditHint(wrapper, action.hint.label, action.hint.icon);
-  }
-
   if (Platform.isDesktopApp) {
     // The section may have been torn down while the stored-height read above
     // was in flight (a child added to an unloaded owner is stored but never
@@ -94,9 +89,9 @@ async function renderCodeBlock(
     });
   }
 
-  // Click anywhere on the diagram (the centered hint shows on hover). The
-  // action is re-resolved at click time so settings changes apply to
-  // already-rendered blocks. Mobile has no editor — show a Notice instead.
+  // Click anywhere on the diagram. The action is re-resolved at click time
+  // so settings changes apply to already-rendered blocks. Mobile has no
+  // editor — show a Notice instead.
   wrapper.addEventListener('click', () => {
     if (!Platform.isDesktopApp) {
       new Notice('Drawio: editing is only available on desktop');

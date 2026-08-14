@@ -4,7 +4,7 @@ Run in a desktop test vault after `npm run build` and copying the plugin (or sym
 
 ## Code blocks
 - [ ] A ` ```drawio ` block with valid mxfile XML renders an SVG preview in reading mode.
-- [ ] The Edit (pencil) button appears (on hover) and opens the editor modal.
+- [ ] Clicking the preview opens the editor modal (default **Preview click action**).
 - [ ] Editing and saving in the modal updates the code block XML and the preview.
 - [ ] Repeated autosaves while editing keep updating the SAME block (no "failed to save" spam, correct block among multiple).
 - [ ] Invalid XML in the block shows the error placeholder + an Edit button.
@@ -16,7 +16,7 @@ Run in a desktop test vault after `npm run build` and copying the plugin (or sym
 - [ ] Edit → Save persists to the file; the preview updates.
 
 ## Embeds
-- [ ] `![[x.drawio]]` shows a preview + Edit button in reading mode.
+- [ ] `![[x.drawio]]` shows a preview in reading mode; clicking it opens the editor.
 - [ ] Editing an embed saves to the underlying file; the embed updates after the note re-renders.
 
 ## Settings / theming
@@ -61,17 +61,16 @@ Needs a `.drawio.svg` (and a `.drawio.png`) embedded in a note:
 `![[diagram.drawio.svg]]`. Test in **Reading view** (the hotspot is
 Reading-view only by design).
 
-- [ ] The embedded image shows an Edit (pencil) hint on hover, and clicking
-      anywhere on it opens the editor on the embedded diagram (not Obsidian's
-      image lightbox).
+- [ ] Clicking anywhere on the embedded image opens the editor on the
+      embedded diagram (not Obsidian's image lightbox).
 - [ ] Editing and saving updates both the embedded XML and the rendered image.
 - [ ] With **Preview click action → Open in default app**, clicking opens the
       file in the OS default app instead; with **Do nothing**, the image is not
-      clickable and shows no hint.
+      clickable.
 - [ ] With **Preview click action → Interactive viewer**, clicking opens the
       editor (the interactive viewer only drives `.drawio` SVG previews; the
       native image has nothing to explore).
-- [ ] A plain (non-drawio) `.svg`/`.png` embed is unaffected — no hint, normal
+- [ ] A plain (non-drawio) `.svg`/`.png` embed is unaffected — normal
       image behavior.
 - [ ] On mobile, the native image is untouched (no hijacked click).
 - [ ] The standalone `.drawio.svg`/`.drawio.png` file tab still edits via the

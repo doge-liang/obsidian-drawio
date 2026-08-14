@@ -2,7 +2,6 @@ import { Platform, TextFileView, WorkspaceLeaf } from 'obsidian';
 import { DRAWIO_VIEW_TYPE } from '../constants';
 import { renderPreview } from './ViewerRenderer';
 import { renderPageControl } from './pageControl';
-import { addEditHint } from './editHint';
 import { resolveClickAction, resolveEditButtonAction, openWithDefaultApp } from './clickAction';
 import { mountInteractiveViewer, type InteractiveMountHandle } from './interactiveMount';
 import { getDiagramPages, ensureMxfile } from '../model/xmlUtils';
@@ -60,12 +59,7 @@ export class DrawioPreviewFileView extends TextFileView {
       });
     }
 
-    // The hint's absolute centring must resolve against the diagram, not the
-    // tab-filling contentEl (there it floats mid-tab in empty space) — and it
-    // can't live inside .drawio-preview, which renderPreview() empties on
-    // every (re-)render, so a page flip would silently drop it.
-    const previewWrap = c.createDiv({ cls: 'drawio-preview-wrap' });
-    const preview = previewWrap.createDiv({ cls: 'drawio-preview' });
+    const preview = c.createDiv({ cls: 'drawio-preview' });
     const pages = getDiagramPages(ensureMxfile(this.data));
     renderPreview(preview, this.data, { ...this.plugin.previewOpts(), page: 0 });
 
@@ -81,9 +75,6 @@ export class DrawioPreviewFileView extends TextFileView {
       });
     }
 
-    if (Platform.isDesktopApp && action.hint) {
-      addEditHint(previewWrap, action.hint.label, action.hint.icon);
-    }
     if (Platform.isDesktopApp) {
       this.interactive = mountInteractiveViewer(c, preview, {
         isEnabled: () =>

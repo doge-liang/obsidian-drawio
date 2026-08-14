@@ -9,7 +9,6 @@ describe('resolveClickAction', () => {
     for (const surface of ['codeblock', 'file'] as const) {
       const r = resolveClickAction('editor', surface);
       expect(r.kind).toBe('editor');
-      expect(r.hint).toEqual({ label: 'Edit', icon: 'pencil' });
       expect(r.title).toBe('Click to edit diagram');
     }
   });
@@ -17,21 +16,18 @@ describe('resolveClickAction', () => {
   it('maps "defaultApp" to the system default app for file-backed surfaces', () => {
     const r = resolveClickAction('defaultApp', 'file');
     expect(r.kind).toBe('defaultApp');
-    expect(r.hint).toEqual({ label: 'Open', icon: 'external-link' });
     expect(r.title).toBe('Click to open in default app');
   });
 
   it('falls back to the built-in editor for "defaultApp" on code blocks (no file)', () => {
     const r = resolveClickAction('defaultApp', 'codeblock');
     expect(r.kind).toBe('editor');
-    expect(r.hint).toEqual({ label: 'Edit', icon: 'pencil' });
   });
 
   it('maps "none" to no action, no hint, and a plain tooltip on every surface', () => {
     for (const surface of ['codeblock', 'file'] as const) {
       const r = resolveClickAction('none', surface);
       expect(r.kind).toBe('none');
-      expect(r.hint).toBeUndefined();
       expect(r.title).toBe('Drawio diagram');
     }
   });
@@ -40,7 +36,6 @@ describe('resolveClickAction', () => {
     for (const surface of ['codeblock', 'file'] as const) {
       const r = resolveClickAction('interactive', surface);
       expect(r.kind).toBe('interactive');
-      expect(r.hint).toEqual({ label: 'Explore', icon: 'move' });
       expect(r.title).toBe('Click to explore diagram');
     }
   });

@@ -2,7 +2,6 @@ import { MarkdownPostProcessorContext, MarkdownRenderChild, Notice, Platform, TF
 import { EditorView } from '@codemirror/view';
 import { renderPreview } from '../preview/ViewerRenderer';
 import { renderPageControl } from '../preview/pageControl';
-import { addEditHint } from '../preview/editHint';
 import {
   resolveClickAction, resolveEditButtonAction, openWithDefaultApp,
 } from '../preview/clickAction';
@@ -227,9 +226,6 @@ class DrawioFileEmbed extends MarkdownRenderChild {
         });
       }
 
-      if (Platform.isDesktopApp && action.hint) {
-        addEditHint(el, action.hint.label, action.hint.icon);
-      }
       if (Platform.isDesktopApp) {
         this.interactive = mountInteractiveViewer(el, preview, {
           isEnabled: () =>
@@ -306,7 +302,7 @@ class DrawioFileEmbed extends MarkdownRenderChild {
  * `.drawio` embeds, they can't go through the embed registry: that registers by
  * final extension, and `svg`/`png` belong to every image, not just ours. A
  * Reading-view markdown post-processor is the right seam: it decorates the
- * already-rendered image span with the shared click action + hover hint, without
+ * already-rendered image span with the shared click action, without
  * changing how the image itself renders.
  *
  * Scope, by design:
@@ -349,8 +345,6 @@ export function registerDualFormatEmbeds(plugin: DrawioPlugin) {
       const action = resolveAction();
       span.setAttribute('title', action.title);
       span.toggleClass('drawio-no-action', action.kind === 'none');
-      if (action.hint) addEditHint(span, action.hint.label, action.hint.icon);
-
       // Capture phase so we pre-empt any native click behavior on the <img>
       // (e.g. lightbox); the action is re-resolved at click time so a settings
       // change applies to already-decorated embeds.
@@ -467,9 +461,6 @@ async function renderEmbedInto(
 
     const action = resolveClickAction(plugin.settings.previewClickAction, 'file');
     span.toggleClass('drawio-no-action', Platform.isDesktopApp && action.kind === 'none');
-    if (Platform.isDesktopApp && action.hint) {
-      addEditHint(span, action.hint.label, action.hint.icon);
-    }
     // The interactive mount is queued through the section lifecycle: it runs
     // when (and only when) Obsidian loads this section's children — never for
     // a section already torn down while the reads above were in flight, and

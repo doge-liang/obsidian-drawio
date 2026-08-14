@@ -133,7 +133,6 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.initializeViewport();
     this.active = true;
     this.root.classList.add('drawio-interactive-active');
-    this.setHintHidden(true);
     this.updateControls();
   }
 
@@ -141,7 +140,6 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.endPan();
     this.active = false;
     this.root.classList.remove('drawio-interactive-active');
-    this.setHintHidden(false);
     this.updateControls();
   }
 
@@ -299,12 +297,6 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.closeFullscreenButton.hidden = !fullscreen;
     this.closeFullscreenButton.disabled = !fullscreen;
   };
-
-  private setHintHidden(hidden: boolean): void {
-    for (const hint of Array.from(this.root.querySelectorAll<HTMLElement>('.drawio-edit-hint'))) {
-      hint.hidden = hidden;
-    }
-  }
 
   private onWheel = (event: WheelEvent): void => {
     if (!this.active || event.deltaY === 0) return;

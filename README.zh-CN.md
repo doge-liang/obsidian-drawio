@@ -12,11 +12,12 @@
 
 ## 亮点
 
-- **三种载体，一个插件** —— 行内 `` ```drawio `` 代码块、独立的 `.drawio` 文件（Excalidraw 风格：编辑器直接嵌在文件所在标签页中），以及 `![[file.drawio]]` 嵌入。三者都会在编辑视图和阅读视图中实时渲染 SVG 预览；点击任意预览即可编辑。
+- **三种载体，一个插件** —— 行内 `` ```drawio `` 代码块、独立的 `.drawio` 文件（Excalidraw 风格：编辑器直接嵌在文件所在标签页中），以及 `![[file.drawio]]` 嵌入。三者都会在编辑视图和阅读视图中实时渲染 SVG 预览。桌面端点击预览的行为由 **Preview click action** 决定（默认打开编辑器）。
 - **预览始终离线** —— 预览由打包进插件的 drawio 自带 viewer 生成：无 iframe、无网络请求，桌面端与移动端皆然。
 - **编辑器可选离线** —— 编辑器默认使用打包的、完全离线的 drawio 构建，由本地服务器提供。商店安装不包含该构建（约 145 MB）；可在插件设置中一键安装，或将编辑器来源切换为 Online。
 - **可读、对 git 友好的存储** —— 图表保存为未压缩、经过美化排版的 XML，而非压缩后的二进制块，因此 diff、同步和版本历史都保持有意义。
 - **支持多页** —— 多页图表会在预览下方显示紧凑的翻页控件（‹ 2 / 5 ›），且 `![[file.drawio#Page-2]]` 会让嵌入在名为 “Page-2” 的页面上打开。
+- **交互式预览（桌面端）** —— 可选：点击预览后在原位浏览图表，支持滚轮/触控板缩放、拖拽平移、**Fit** 和 **Full screen**；需要改图时再点 **Edit**。默认关闭 —— 将 **Preview click action** 设为 **Interactive viewer** 即可启用。
 - **融入 Obsidian** —— 跟随亮色/暗色主题，在弹出窗口中依然可用，在插入前对渲染的 SVG 做净化处理，并支持手机和平板（在这些设备上仅预览 —— 参见[平台支持](#平台支持)）。
 
 ## 快速开始
@@ -31,12 +32,21 @@
 
 | 载体 | 创建 | 编辑 |
 | --- | --- | --- |
-| **代码块** | 在任意笔记中添加 `` ```drawio `` 代码块（可留空，或粘贴 drawio XML） | 点击预览 → 全屏模态框 |
+| **代码块** | 在任意笔记中添加 `` ```drawio `` 代码块（可留空，或粘贴 drawio XML） | 点击预览（见 **Preview click action**；默认：全屏编辑器） |
 | **`.drawio` 文件** | 侧边栏按钮 / **Create new diagram** 命令 / 文件夹右键菜单 | 编辑器直接嵌入文件的标签页 |
-| **嵌入** | 在任意笔记中写 `![[your-diagram.drawio]]` | 点击预览 → 快速编辑模态框 |
+| **嵌入** | 在任意笔记中写 `![[your-diagram.drawio]]` | 点击预览（见 **Preview click action**；默认：快速编辑模态框） |
 | **`.drawio.svg` / `.drawio.png` 文件** | 同样的入口，先设置 **New diagram format** | 右键文件 → **Edit drawio diagram** |
 
 以上载体都在编辑视图和阅读视图中渲染为预览，每次编辑都会自动保存回其源头 —— 代码块的 XML 或图表文件。当底层文件变化时，嵌入会自动重新渲染。
+
+**点击预览（桌面端）：** **设置 → Drawio → Preview click action** 决定点击预览时发生什么：
+
+- **Open built-in editor**（默认）—— 代码块预览打开全屏编辑器；嵌入打开快速编辑模态框。
+- **Open in system default app** —— 用系统默认应用打开对应的 `.drawio` 文件。代码块没有对应文件，因此仍会打开内置编辑器。
+- **Interactive viewer** —— 在原位浏览图表（滚轮/触控板缩放、拖拽平移、**Fit**、**Full screen**）。要改图时点 **Edit**；**Edit button action** 决定它打开内置编辑器还是系统默认应用（代码块始终使用内置编辑器）。拖动代码块或嵌入预览下方的手柄可调整高度 —— 按笔记中的每一处插入单独记住（该代码块或嵌入上方会写入 `<!-- drawio-viewer: height=N -->` 注释），并在实时预览与阅读视图之间保持同步。
+- **Do nothing** —— 预览不可点击。
+
+交互式预览适用于 `` ```drawio `` 代码块、`![[file.drawio]]` 嵌入，以及只读的 `.drawio` 文件标签页。直接打开 `.drawio` 文件时仍使用内嵌编辑器，除非开启了 **Open diagram files read-only**。在阅读视图中，`![[file.drawio.svg]]` / `![[file.drawio.png]]` 嵌入遵循同一设置，但 **Interactive viewer** 会回退到编辑器 —— 它们显示为原生图片，没有可缩放的 SVG。
 
 **双格式文件（`.drawio.svg` / `.drawio.png`）**：文件本体*就是*标准的 SVG 或 PNG 图片，图表数据内嵌其中 —— 它在任何地方（GitHub、导出物、其他工具、Obsidian 自身的图片视图与嵌入）都显示为普通图片，同时在这里保持完全可编辑。在设置中选择 **New diagram format** 即可默认创建这类文件；通过文件右键菜单（**Edit drawio diagram**）或 **Edit diagram in the current image file** 命令编辑。每次保存都会重新导出图片部分，使图像与图表保持同步。与 VS Code drawio 扩展格式相同，文件可互换使用。
 
@@ -56,6 +66,7 @@
 | 独立 `.drawio` 文件标签页 | 内联编辑器（或只读预览，需手动开启） | 只读预览 | 只读预览 |
 | 多页翻页控件与 `#Page-N` 嵌入 | 是 | 是 | 是 |
 | 跟随亮色/暗色主题 | 是 | 是 | 是 |
+| 交互式预览（缩放 / 平移 / 全屏） | 是 | — | — |
 | 编辑图表（模态框 / 内联编辑器） | 是 | — | — |
 | 创建图表（侧边栏、命令、文件夹菜单） | 是 | — | — |
 | 离线编辑器（打包 webapp + 本地服务器） | 是 | — | — |
@@ -73,7 +84,8 @@
 | **New diagram location**（新图表位置） | 命令和侧边栏按钮创建图表的位置：库根目录（默认）、当前笔记所在文件夹，或固定文件夹（不存在则创建）。文件夹右键菜单始终在被点击的文件夹中创建。 |
 | **New diagram format**（新图表格式） | `.drawio`（纯 XML，默认）、`.drawio.svg` 或 `.drawio.png` —— 后两者是内嵌图表数据的标准图片，随处可看，在此可编辑。 |
 | **Open diagram files read-only**（以只读方式打开图表文件） | 桌面端：打开 `.drawio` 文件时显示静态预览而非内嵌编辑器 —— 适用于以 drawio-desktop 为中心的工作流。对新打开的标签页生效。 |
-| **Preview click action**（预览点击行为） | 桌面端：点击预览的行为 —— 打开内置编辑器（默认）、用系统默认应用打开文件，或什么都不做。代码块始终使用内置编辑器（它们没有对应文件）。 |
+| **Preview click action**（预览点击行为） | 桌面端：点击预览的行为 —— **Open built-in editor**（默认）、**Open in system default app**、**Interactive viewer**，或 **Do nothing**。代码块没有对应文件，因此“用系统默认应用打开”会回退到内置编辑器。 |
+| **Edit button action**（编辑按钮行为） | 桌面端：仅在 **Preview click action** 为 **Interactive viewer** 时显示。控制交互预览里 **Edit** 对有文件的图表做什么 —— 内置编辑器或系统默认应用。代码块始终使用内置编辑器。 |
 | **Preview alignment**（预览对齐） | 渲染的预览居中（默认）或左对齐。 |
 | **Follow Obsidian theme**（跟随 Obsidian 主题） | 让编辑器匹配 Obsidian 的亮色/暗色主题。 |
 | **Show shape libraries**（显示形状库） | 切换编辑器的形状面板。 |
@@ -97,7 +109,9 @@
 
 ## 疑难解答
 
-**点击图表没有反应 / 编辑器打不开。** 编辑仅限桌面端，移动端只能预览。在桌面端，请检查 **设置 → Drawio → Preview click action** —— 若设为 **Do nothing**，预览会被有意设为不可点击。
+**点击图表没有反应 / 编辑器打不开。** 编辑仅限桌面端，移动端只能预览。在桌面端，请检查 **设置 → Drawio → Preview click action**：设为 **Do nothing** 时预览不可点击；**Interactive viewer** 会在原位浏览图表而不是打开编辑器（改图请点 **Edit**）；**Open in system default app** 会在 Obsidian 外打开该文件。
+
+**找不到交互式预览。** 它不是默认行为。在桌面端把 **设置 → Drawio → Preview click action** 设为 **Interactive viewer**，然后点击 `` ```drawio `` 预览或 `.drawio` 嵌入。直接打开 `.drawio` 文件仍会显示内嵌编辑器，除非开启了 **Open diagram files read-only**。`.drawio.svg` / `.drawio.png` 嵌入会回退到编辑器（它们渲染为原生图片）。
 
 **提示「离线编辑器未安装」，或 Offline 模式下编辑器打开是空白。** 商店安装不含约 145 MB 的离线 webapp。打开 **设置 → Drawio**，保持 **Editor source → Offline (bundled webapp)**，点击 **Install**（一次性约 53 MB 下载）。也可以把 **Editor source** 切到 **Online**，从 diagrams.net 加载编辑器。若想完全离线安装、不在应用内下载，参见[离线编辑器](#离线编辑器可选)。
 

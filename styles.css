@@ -2,8 +2,8 @@
 .drawio-codeblock { position: relative; cursor: pointer; }
 .drawio-embed { position: relative; cursor: pointer; display: inline-block; max-width: 100%; }
 /* Dual-format image embeds (`![[x.drawio.svg]]`): Obsidian renders the native
-   <img>; we only add the click-to-edit hotspot + hover hint on top, so the
-   span needs a positioning context and the pointer affordance. */
+   <img>; we only add the click-to-edit hotspot on top, so the span needs a
+   positioning context and the pointer affordance. */
 .drawio-dualformat-embed { position: relative; cursor: pointer; }
 .drawio-preview { width: 100%; overflow: auto; text-align: center; }
 /* The extracted SVG carries explicit width/height/viewBox (see ViewerRenderer),
@@ -15,28 +15,6 @@
 body.drawio-align-left .drawio-preview { text-align: left; }
 body.drawio-align-left .drawio-preview svg { margin: 0; }
 
-/* Centered, hover-revealed "Edit" hint. Non-interactive (clicks fall through to the
-   preview) and centered rather than in a corner, so it never collides with other
-   plugins' code-block buttons (copy button, etc.). */
-.drawio-edit-hint {
-  position: absolute; inset: 0; margin: auto;
-  width: max-content; height: max-content;
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px; border-radius: 8px;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  color: var(--text-normal); font-size: var(--font-ui-small);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
-  opacity: 0; transition: opacity .12s ease;
-  pointer-events: none;
-}
-.drawio-edit-hint-icon { display: inline-flex; }
-.drawio-codeblock:hover .drawio-edit-hint,
-.drawio-embed:hover .drawio-edit-hint,
-.drawio-dualformat-embed:hover .drawio-edit-hint,
-.drawio-codeblock:focus-within .drawio-edit-hint,
-.drawio-embed:focus-within .drawio-edit-hint,
-.drawio-dualformat-embed:focus-within .drawio-edit-hint { opacity: .92; }
 /* Previews whose click action is "Do nothing" shouldn't advertise clickability. */
 .drawio-codeblock.drawio-no-action, .drawio-embed.drawio-no-action,
 .drawio-dualformat-embed.drawio-no-action { cursor: default; }
@@ -65,7 +43,6 @@ body.drawio-align-left .drawio-preview svg { margin: 0; }
 .drawio-interactive-active .drawio-interactive-toolbar { display: flex; }
 .drawio-interactive-toolbar:hover,
 .drawio-interactive-toolbar:focus-within { opacity: 1; }
-.drawio-edit-hint[hidden] { display: none !important; }
 .drawio-interactive-active.drawio-interactive-zoomed .drawio-interactive-viewport { cursor: grab; }
 .drawio-interactive-panning .drawio-interactive-viewport { cursor: grabbing; }
 .drawio-interactive-toolbar button {
@@ -175,12 +152,7 @@ body.drawio-align-left .drawio-preview svg { margin: 0; }
 
 /* ---- Read-only file view (.drawio files: always on mobile, opt-in on desktop) ---- */
 .drawio-preview-file-view { position: relative; height: 100%; overflow: auto; padding: 12px; }
-/* Positioning context for the hover "Edit" hint: anchors it over the diagram
-   itself instead of the tab-filling view container. */
-.drawio-preview-file-view .drawio-preview-wrap { position: relative; }
 .drawio-preview-file-view.drawio-clickable { cursor: pointer; }
-.drawio-preview-file-view:hover .drawio-edit-hint,
-.drawio-preview-file-view:focus-within .drawio-edit-hint { opacity: .92; }
 .drawio-mobile-banner {
   margin-bottom: 12px; padding: 6px 12px;
   border: 1px solid var(--background-modifier-border); border-radius: 6px;

@@ -97,7 +97,7 @@ describe('drawio embed — mobile click behavior', () => {
     heightMetadata.write.mockResolvedValue('written');
   });
 
-  it('opens the editor on click and shows the edit hint on desktop', async () => {
+  it('opens the editor on click on desktop', async () => {
     Platform.isDesktopApp = true;
     const openEditor = vi.fn();
     const { plugin, create } = fakePlugin(openEditor);
@@ -107,7 +107,6 @@ describe('drawio embed — mobile click behavior', () => {
     await embed.loadFile();
     containerEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(openEditor).toHaveBeenCalledTimes(1);
-    expect(containerEl.querySelector('.drawio-edit-hint')).not.toBeNull();
   });
 
   it('opens the system default app on click under "defaultApp"', async () => {
@@ -123,7 +122,7 @@ describe('drawio embed — mobile click behavior', () => {
     expect(openEditor).not.toHaveBeenCalled();
   });
 
-  it('does nothing on click under "none", with no edit hint', async () => {
+  it('does nothing on click under "none"', async () => {
     Platform.isDesktopApp = true;
     const openEditor = vi.fn();
     const { plugin, create, openWithDefaultApp } = fakePlugin(openEditor, 'none');
@@ -134,7 +133,6 @@ describe('drawio embed — mobile click behavior', () => {
     containerEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(openEditor).not.toHaveBeenCalled();
     expect(openWithDefaultApp).not.toHaveBeenCalled();
-    expect(containerEl.querySelector('.drawio-edit-hint')).toBeNull();
   });
 
   it('mounts the interactive viewer and opens the file editor from its Edit button', async () => {
@@ -150,7 +148,6 @@ describe('drawio embed — mobile click behavior', () => {
       .dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(containerEl.classList.contains('drawio-interactive-active')).toBe(true);
     expect(containerEl.querySelector('.drawio-interactive-toolbar')).not.toBeNull();
-    expect(containerEl.querySelector<HTMLElement>('.drawio-edit-hint')!.hidden).toBe(true);
     containerEl.querySelector<HTMLButtonElement>('[aria-label="Edit diagram"]')!.click();
     expect(openEditor).toHaveBeenCalledTimes(1);
   });
@@ -385,7 +382,7 @@ describe('drawio embed — mobile click behavior', () => {
     }
   });
 
-  it('shows a Notice instead of opening the editor on mobile, with no edit hint', async () => {
+  it('shows a Notice instead of opening the editor on mobile', async () => {
     Platform.isDesktopApp = false;
     const openEditor = vi.fn();
     const { plugin, create } = fakePlugin(openEditor);
@@ -395,6 +392,5 @@ describe('drawio embed — mobile click behavior', () => {
     await embed.loadFile();
     containerEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(openEditor).not.toHaveBeenCalled();
-    expect(containerEl.querySelector('.drawio-edit-hint')).toBeNull();
   });
 });

@@ -53,7 +53,7 @@ describe('DrawioPreviewFileView', () => {
   const originalIsDesktopApp = Platform.isDesktopApp;
   afterEach(() => { Platform.isDesktopApp = originalIsDesktopApp; });
 
-  it('on mobile renders the fixed banner and the diagram, with no iframe and no hint', () => {
+  it('on mobile renders the fixed banner and the diagram, with no iframe', () => {
     Platform.isDesktopApp = false;
     const view = makeView(fakePlugin());
     view.setViewData(XML, true);
@@ -61,7 +61,6 @@ describe('DrawioPreviewFileView', () => {
     expect(banner?.textContent).toContain('preview only on mobile');
     expect(view.contentEl.querySelector('.drawio-preview')).not.toBeNull();
     expect(view.contentEl.querySelector('iframe')).toBeNull();
-    expect(view.contentEl.querySelector('.drawio-edit-hint')).toBeNull();
   });
 
   it('on mobile ignores clicks (no editor, no default app)', () => {
@@ -81,8 +80,6 @@ describe('DrawioPreviewFileView', () => {
     const view = makeView(fakePlugin('editor', openEditor));
     view.setViewData(XML, true);
     expect(view.contentEl.querySelector('.drawio-mobile-banner')).toBeNull();
-    const hintLabels = Array.from(view.contentEl.querySelectorAll('.drawio-edit-hint span'));
-    expect(hintLabels.some((s) => s.textContent === 'Edit')).toBe(true);
     view.contentEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(openEditor).toHaveBeenCalledTimes(1);
   });
@@ -93,20 +90,17 @@ describe('DrawioPreviewFileView', () => {
     const openWithDefaultApp = vi.fn();
     const view = makeView(fakePlugin('defaultApp', openEditor, { openWithDefaultApp }));
     view.setViewData(XML, true);
-    const hintLabels = Array.from(view.contentEl.querySelectorAll('.drawio-edit-hint span'));
-    expect(hintLabels.some((s) => s.textContent === 'Open')).toBe(true);
     view.contentEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(openWithDefaultApp).toHaveBeenCalledWith('diagram.drawio');
     expect(openEditor).not.toHaveBeenCalled();
   });
 
-  it('on desktop does nothing on click ("none"), with no hint', () => {
+  it('on desktop does nothing on click ("none")', () => {
     Platform.isDesktopApp = true;
     const openEditor = vi.fn();
     const openWithDefaultApp = vi.fn();
     const view = makeView(fakePlugin('none', openEditor, { openWithDefaultApp }));
     view.setViewData(XML, true);
-    expect(view.contentEl.querySelector('.drawio-edit-hint')).toBeNull();
     view.contentEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(openEditor).not.toHaveBeenCalled();
     expect(openWithDefaultApp).not.toHaveBeenCalled();
@@ -151,24 +145,6 @@ describe('DrawioPreviewFileView', () => {
     const view = makeView(fakePlugin());
     view.setViewData(MULTI_PAGE_XML, true);
     expect(view.contentEl.querySelector('.drawio-page-control')).not.toBeNull();
-  });
-
-  it('anchors the edit hint to the preview wrapper, not the tab-filling container', () => {
-    Platform.isDesktopApp = true;
-    const view = makeView(fakePlugin());
-    view.setViewData(XML, true);
-    const hint = view.contentEl.querySelector('.drawio-edit-hint');
-    expect(hint?.parentElement?.classList.contains('drawio-preview-wrap')).toBe(true);
-  });
-
-  it('keeps the edit hint after flipping pages (renderPreview empties only .drawio-preview)', () => {
-    Platform.isDesktopApp = true;
-    const view = makeView(fakePlugin());
-    view.setViewData(MULTI_PAGE_XML, true);
-    const nextBtn = view.contentEl.querySelectorAll<HTMLButtonElement>('.drawio-page-control button')[1];
-    expect(nextBtn?.textContent).toBe('›');
-    nextBtn?.click();
-    expect(view.contentEl.querySelector('.drawio-edit-hint')).not.toBeNull();
   });
 
   it('getViewData returns the last data set (no write path)', () => {

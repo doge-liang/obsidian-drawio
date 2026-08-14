@@ -51,7 +51,7 @@ These are separate; a change to one rarely affects the other.
   fallback), `FileSource`.
 - `src/editor/` — `DrawioEditor` (iframe + postMessage), `DrawioModal`, `embedMessages`.
 - `src/preview/` — `ViewerRenderer` (`renderPreview`), `loadViewer`, `svgSanitizer`,
-  `editHint`, `pageControl` (multi-page prev/next control), and the vendored
+  `pageControl` (multi-page prev/next control), and the vendored
   `viewer.min.txt`.
 - `src/server/` — `ServerManager` (local `127.0.0.1` HTTP server serving the offline
   webapp, with idle shutdown) + `portDetector`.
