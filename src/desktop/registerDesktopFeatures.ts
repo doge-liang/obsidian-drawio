@@ -5,6 +5,8 @@ import { createNewDiagram } from '../file/createDiagram';
 import { DualFormatFileSource } from '../file/DualFormatFileSource';
 import { dualFormatOf } from '../model/dualFormat';
 import { exportDiagramToFile, isExportableDiagram } from './exportDiagram';
+import { registerDualFormatOpen } from './dualFormatOpen';
+import { openMigrateLegacy } from './migrateLegacySvg';
 import type DrawioPlugin from '../main';
 
 /**
@@ -69,6 +71,14 @@ export async function registerDesktopFeatures(plugin: DrawioPlugin): Promise<voi
       }
     }
   }));
+
+  registerDualFormatOpen(plugin);
+
+  plugin.addCommand({
+    id: 'migrate-legacy-diagrams',
+    name: 'Migrate diagrams from the old Diagrams plugin',
+    callback: () => { void openMigrateLegacy(plugin); },
+  });
 
   plugin.addCommand({
     id: 'edit-dual-format-diagram',

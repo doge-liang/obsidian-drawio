@@ -96,11 +96,21 @@ describe('ServerManager', () => {
     expect(status).toBe(400);
   });
 
-  it('does not follow a symlink that escapes the webapp dir', async () => {
+  it('does not follow a symlink that escapes the webapp dir', async (ctx) => {
     const root = fakeWebapp();
     const outside = mkdtempSync(join(tmpdir(), 'secret-'));
     writeFileSync(join(outside, 'secret.txt'), 'TOPSECRET');
-    symlinkSync(join(outside, 'secret.txt'), join(root, 'link.txt'));
+    try {
+      symlinkSync(join(outside, 'secret.txt'), join(root, 'link.txt'));
+    } catch (err) {
+      // Windows without Developer Mode / elevation cannot create symlinks.
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'EPERM' || code === 'ENOTSUP' || code === 'EACCES') {
+        ctx.skip();
+        return;
+      }
+      throw err;
+    }
     mgr = new ServerManager(root, { min: 41160, max: 41169, idleMs: 60000 });
     const port = await mgr.ensureStarted();
     const res = await fetch(`http://127.0.0.1:${port}/link.txt`);

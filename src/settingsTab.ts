@@ -210,7 +210,21 @@ export class DrawioSettingTab extends PluginSettingTab {
               this.plugin.updateServerIdleTimeout();
             });
         });
+
+      new Setting(containerEl)
+        .setName('Migrate from the old Diagrams plugin')
+        .setDesc(
+          'Find SVG files with embedded drawio data (the unmaintained Diagrams plugin\'s ' +
+          'default format) and rename them to .drawio.svg. Wikilinks are updated automatically.',
+        )
+        .addButton((b) => b
+          .setButtonText('Scan vault…')
+          .onClick(() => { void this.startMigrate(); }));
     }
+  }
+
+  private startMigrate(): void {
+    void import('./desktop/migrateLegacySvg').then((m) => m.openMigrateLegacy(this.plugin));
   }
 
   /** Status row for the bundled offline editor: detection is async (disk

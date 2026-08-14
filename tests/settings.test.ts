@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { DEFAULT_SETTINGS } from '../src/settings';
 
 describe('DEFAULT_SETTINGS', () => {
-  it('defaults the editor to offline (store installs fall back to online at runtime)', () => {
+  it('defaults the editor to offline (no automatic online fallback)', () => {
     // CLAUDE.md invariant: the default mode is 'offline'. Flipping this would
     // change first-run behavior for every install.
     expect(DEFAULT_SETTINGS.drawioMode).toBe('offline');
@@ -18,10 +18,6 @@ describe('DEFAULT_SETTINGS', () => {
 
   it('keeps the idle timeout within the settings-tab minimum (>= 5s)', () => {
     expect(DEFAULT_SETTINGS.serverIdleTimeout).toBeGreaterThanOrEqual(5);
-  });
-
-  it('stores code-block XML uncompressed and readable by default', () => {
-    expect(DEFAULT_SETTINGS.storeFormat).toBe('xml');
   });
 
   it('follows the Obsidian theme and shows the shape libraries by default', () => {
@@ -58,7 +54,6 @@ describe('DEFAULT_SETTINGS', () => {
         'serverPortMax',
         'serverPortMin',
         'showLibraries',
-        'storeFormat',
       ].sort(),
     );
   });

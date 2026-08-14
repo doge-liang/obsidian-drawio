@@ -15,8 +15,8 @@ const prod = process.argv[2] === 'production';
 // upstream. The replacement count is asserted so a future drawio bump that changes
 // the minified shape fails the build loudly instead of silently re-introducing it.
 const VIEWER_SCRIPT_LOADER =
-  'var V=document.createElement("script");V.setAttribute("type","text/javascript");' +
-  'V.setAttribute("src",k);x[0].parentNode.appendChild(V)';
+  'var Z=document.createElement("script");Z.setAttribute("type","text/javascript");' +
+  'Z.setAttribute("src",k);z[0].parentNode.appendChild(Z)';
 
 const sanitizeDrawioViewerPlugin = {
   name: 'sanitize-drawio-viewer',

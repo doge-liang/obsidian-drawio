@@ -127,6 +127,18 @@ body.drawio-align-left .drawio-preview svg { margin: 0; }
 .drawio-page-control .drawio-pin { display: inline-flex; align-items: center; }
 .drawio-page-control .drawio-pin svg { width: 14px; height: 14px; }
 
+/* Dual-format embeds in Live Preview: native <img>, no post-processor class. */
+.internal-embed[src*=".drawio.svg"],
+.internal-embed[src*=".drawio.png"] { cursor: pointer; }
+
+/* Old-Diagrams-plugin migration preview list. */
+.drawio-migrate-list {
+  max-height: 40vh; overflow: auto; margin: 0 0 12px;
+  padding-left: 1.2em; font-size: var(--font-ui-small);
+}
+.drawio-migrate-list li { margin: 4px 0; }
+.drawio-migrate-links { color: var(--text-muted); }
+
 /* ---- Modal editor (code blocks & embeds) ---- */
 .drawio-modal { width: 90vw; height: 90vh; max-width: none; }
 .drawio-modal .modal-content { height: 100%; padding: 0; }

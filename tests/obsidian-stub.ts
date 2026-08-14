@@ -43,7 +43,15 @@ export class Plugin {
 }
 
 export class Modal {
-  constructor(_app: unknown) {}
+  app: unknown;
+  titleEl: HTMLElement = document.createElement('div');
+  contentEl: HTMLElement = document.createElement('div');
+  modalEl: HTMLElement = document.createElement('div');
+  constructor(app: unknown) { this.app = app; }
+  open(): void { this.onOpen(); }
+  close(): void { this.onClose(); }
+  onOpen(): void {}
+  onClose(): void {}
 }
 
 export const Platform = {

@@ -4,6 +4,7 @@
 
 [![Release](https://img.shields.io/github/v/release/doge-liang/obsidian-drawio?label=release&color=blue)](https://github.com/doge-liang/obsidian-drawio/releases/latest)
 [![Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22drawio-editor%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)](https://obsidian.md/plugins?id=drawio-editor)
+[![draw.io](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fdoge-liang%2Fobsidian-drawio%2Fmain%2Fdrawio-version.json&query=%24.version&label=draw.io&color=F08705)](https://github.com/jgraph/drawio/releases)
 [![License](https://img.shields.io/github/license/doge-liang/obsidian-drawio)](LICENSE)
 
 Embed, preview, and edit [draw.io](https://www.drawio.com/) (diagrams.net) diagrams directly in your notes. Previews render fully offline on every platform, and diagrams are stored as readable, diff-friendly XML.
@@ -35,7 +36,7 @@ The editor needs one of: the offline editor installed (one click in settings, ~5
 | **Code block** | Add a `` ```drawio `` block in any note (start empty, or paste drawio XML) | Click the preview (see **Preview click action**; default: full-screen editor) |
 | **`.drawio` file** | Ribbon button / **Create new diagram** command / folder context menu | Editor embedded directly in the file's tab |
 | **Embed** | `![[your-diagram.drawio]]` in any note | Click the preview (see **Preview click action**; default: quick-edit modal) |
-| **`.drawio.svg` / `.drawio.png` file** | Same entry points, after setting **New diagram format** | Right-click the file → **Edit drawio diagram** |
+| **`.drawio.svg` / `.drawio.png` file** | Same entry points, after setting **New diagram format** | Click the embed, the **Edit** button on the image tab, or right-click → **Edit drawio diagram** |
 
 All render as previews in both editing and reading views, and every edit autosaves back to its source — the code block's XML or the diagram file. Embeds re-render automatically when the underlying file changes.
 
@@ -46,9 +47,9 @@ All render as previews in both editing and reading views, and every edit autosav
 - **Interactive viewer** — explore the diagram in place (wheel/trackpad zoom, drag to pan, **Fit**, **Full screen**). Use **Edit** when you want to change it; **Edit button action** chooses whether that opens the built-in editor or the system default app (code blocks always use the built-in editor). Drag the handle under a code-block or embed preview to set its height — remembered per insertion in the note (a `<!-- drawio-viewer: height=N -->` comment above that block or embed), and kept in sync between Live Preview and Reading view.
 - **Do nothing** — the preview is not clickable.
 
-The interactive viewer works on `` ```drawio `` blocks, `![[file.drawio]]` embeds, and the read-only `.drawio` file tab. Opening a `.drawio` file still uses the embedded editor unless **Open diagram files read-only** is on. In Reading view, `![[file.drawio.svg]]` / `![[file.drawio.png]]` embeds follow the same setting, except **Interactive viewer** falls back to the editor — they display as a native image, with nothing to zoom.
+The interactive viewer works on `` ```drawio `` blocks, `![[file.drawio]]` embeds, and the read-only `.drawio` file tab. Opening a `.drawio` file still uses the embedded editor unless **Open diagram files read-only** is on. `![[file.drawio.svg]]` / `![[file.drawio.png]]` embeds follow the same setting in both Live Preview and Reading view, except **Interactive viewer** falls back to the editor — they display as a native image, with nothing to zoom.
 
-**Dual-format files (`.drawio.svg` / `.drawio.png`):** the file *is* a standard SVG or PNG image with the diagram embedded inside — it displays as a plain image everywhere (GitHub, exports, other tools, Obsidian's own image view and embeds) while staying fully editable here. Set **New diagram format** in the settings to create them by default; edit via the file's context menu (**Edit drawio diagram**) or the **Edit diagram in the current image file** command. Each save re-exports the image part, keeping picture and diagram in sync. Same format as the VS Code drawio extension, so the files are interchangeable.
+**Dual-format files (`.drawio.svg` / `.drawio.png`):** the file *is* a standard SVG or PNG image with the diagram embedded inside — it displays as a plain image everywhere (GitHub, exports, other tools, Obsidian's own image view and embeds) while staying fully editable here. Set **New diagram format** in the settings to create them by default. On desktop, click an embed, use the **Edit** button on the image tab, the file context menu (**Edit drawio diagram**), or the **Edit diagram in the current image file** command. Each save re-exports the image part, keeping picture and diagram in sync. Same format as the VS Code drawio extension, so the files are interchangeable.
 
 ![The drawio editor embedded in a file tab](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/file-editor.png)
 
@@ -57,6 +58,8 @@ The interactive viewer works on `` ```drawio `` blocks, `![[file.drawio]]` embed
 **Converting between code blocks and files:** two palette commands switch a diagram between its two source forms (they work on mobile too). **Extract diagram code block to file** — with the cursor inside a `` ```drawio `` block — moves the block's XML into a new `<note name> diagram.drawio` file next to the note (numbered `2`, `3`, … if that name is taken) and replaces the block with an embed. **Convert diagram embed to code block** — with the cursor on a line containing a `![[….drawio]]` embed — replaces the embed with a `` ```drawio `` block holding the file's XML; the file itself is kept, and any `#Page-…` or `|alias` part of the link is dropped.
 
 **Exporting plain images (desktop):** the **Export diagram as SVG** and **Export diagram as PNG** commands — also on the context menu of `.drawio` and `.drawio.svg`/`.drawio.png` files — write a plain `.svg`/`.png` image of the diagram (without the embedded diagram data) next to the source file, numbered `2`, `3`, … if the name is taken.
+
+**Migrating from the old Diagrams plugin (desktop):** that plugin saved diagrams as ordinary `.svg` files with the drawio XML in the SVG `content` attribute. Run **Migrate diagrams from the old Diagrams plugin** (command palette, or **Settings → Drawio → Scan vault…**) to preview the matches and rename them to `.drawio.svg`. Wikilinks are updated automatically. Plain `.drawio` files open here as-is; you can disable the old plugin afterwards.
 
 ### Platform support
 
@@ -70,6 +73,7 @@ The interactive viewer works on `` ```drawio `` blocks, `![[file.drawio]]` embed
 | Editing diagrams (modal / inline editor) | Yes | — | — |
 | Creating diagrams (ribbon, command, folder menu) | Yes | — | — |
 | Offline editor (bundled webapp + local server) | Yes | — | — |
+| Migrate old Diagrams-plugin `.svg` files | Yes | — | — |
 
 Phones and tablets behave identically: previews everywhere, no editing. Tapping a preview there shows a notice that editing needs desktop; the creation entry points are hidden as well, since their sole purpose is opening the editor.
 

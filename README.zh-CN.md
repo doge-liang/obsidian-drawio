@@ -4,6 +4,7 @@
 
 [![Release](https://img.shields.io/github/v/release/doge-liang/obsidian-drawio?label=release&color=blue)](https://github.com/doge-liang/obsidian-drawio/releases/latest)
 [![Downloads](https://img.shields.io/badge/dynamic/json?logo=obsidian&color=%23483699&label=downloads&query=%24%5B%22drawio-editor%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json)](https://obsidian.md/plugins?id=drawio-editor)
+[![draw.io](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fdoge-liang%2Fobsidian-drawio%2Fmain%2Fdrawio-version.json&query=%24.version&label=draw.io&color=F08705)](https://github.com/jgraph/drawio/releases)
 [![License](https://img.shields.io/github/license/doge-liang/obsidian-drawio)](LICENSE)
 
 在笔记中直接嵌入、预览并编辑 [draw.io](https://www.drawio.com/)（diagrams.net）图表。预览在所有平台上完全离线渲染，图表以可读、便于 diff 的 XML 形式存储。
@@ -35,7 +36,7 @@
 | **代码块** | 在任意笔记中添加 `` ```drawio `` 代码块（可留空，或粘贴 drawio XML） | 点击预览（见 **Preview click action**；默认：全屏编辑器） |
 | **`.drawio` 文件** | 侧边栏按钮 / **Create new diagram** 命令 / 文件夹右键菜单 | 编辑器直接嵌入文件的标签页 |
 | **嵌入** | 在任意笔记中写 `![[your-diagram.drawio]]` | 点击预览（见 **Preview click action**；默认：快速编辑模态框） |
-| **`.drawio.svg` / `.drawio.png` 文件** | 同样的入口，先设置 **New diagram format** | 右键文件 → **Edit drawio diagram** |
+| **`.drawio.svg` / `.drawio.png` 文件** | 同样的入口，先设置 **New diagram format** | 点击嵌入、图片页签上的 **Edit**，或右键 → **Edit drawio diagram** |
 
 以上载体都在编辑视图和阅读视图中渲染为预览，每次编辑都会自动保存回其源头 —— 代码块的 XML 或图表文件。当底层文件变化时，嵌入会自动重新渲染。
 
@@ -46,9 +47,9 @@
 - **Interactive viewer** —— 在原位浏览图表（滚轮/触控板缩放、拖拽平移、**Fit**、**Full screen**）。要改图时点 **Edit**；**Edit button action** 决定它打开内置编辑器还是系统默认应用（代码块始终使用内置编辑器）。拖动代码块或嵌入预览下方的手柄可调整高度 —— 按笔记中的每一处插入单独记住（该代码块或嵌入上方会写入 `<!-- drawio-viewer: height=N -->` 注释），并在实时预览与阅读视图之间保持同步。
 - **Do nothing** —— 预览不可点击。
 
-交互式预览适用于 `` ```drawio `` 代码块、`![[file.drawio]]` 嵌入，以及只读的 `.drawio` 文件标签页。直接打开 `.drawio` 文件时仍使用内嵌编辑器，除非开启了 **Open diagram files read-only**。在阅读视图中，`![[file.drawio.svg]]` / `![[file.drawio.png]]` 嵌入遵循同一设置，但 **Interactive viewer** 会回退到编辑器 —— 它们显示为原生图片，没有可缩放的 SVG。
+交互式预览适用于 `` ```drawio `` 代码块、`![[file.drawio]]` 嵌入，以及只读的 `.drawio` 文件标签页。直接打开 `.drawio` 文件时仍使用内嵌编辑器，除非开启了 **Open diagram files read-only**。`![[file.drawio.svg]]` / `![[file.drawio.png]]` 嵌入在实时预览和阅读视图中都遵循同一设置，但 **Interactive viewer** 会回退到编辑器 —— 它们显示为原生图片，没有可缩放的 SVG。
 
-**双格式文件（`.drawio.svg` / `.drawio.png`）**：文件本体*就是*标准的 SVG 或 PNG 图片，图表数据内嵌其中 —— 它在任何地方（GitHub、导出物、其他工具、Obsidian 自身的图片视图与嵌入）都显示为普通图片，同时在这里保持完全可编辑。在设置中选择 **New diagram format** 即可默认创建这类文件；通过文件右键菜单（**Edit drawio diagram**）或 **Edit diagram in the current image file** 命令编辑。每次保存都会重新导出图片部分，使图像与图表保持同步。与 VS Code drawio 扩展格式相同，文件可互换使用。
+**双格式文件（`.drawio.svg` / `.drawio.png`）**：文件本体*就是*标准的 SVG 或 PNG 图片，图表数据内嵌其中 —— 它在任何地方（GitHub、导出物、其他工具、Obsidian 自身的图片视图与嵌入）都显示为普通图片，同时在这里保持完全可编辑。在设置中选择 **New diagram format** 即可默认创建这类文件。桌面端可以点击嵌入、用图片页签上的 **Edit**、文件右键（**Edit drawio diagram**），或 **Edit diagram in the current image file** 命令编辑。每次保存都会重新导出图片部分，使图像与图表保持同步。与 VS Code drawio 扩展格式相同，文件可互换使用。
 
 ![嵌入文件标签页中的 drawio 编辑器](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/file-editor.png)
 
@@ -57,6 +58,8 @@
 **代码块与文件互转：** 命令面板提供两个命令，在图表的两种存放形式之间切换（移动端同样可用）。**Extract diagram code block to file** —— 光标位于 `` ```drawio `` 代码块内时 —— 会把块内 XML 移入笔记同文件夹下新建的 `<笔记名> diagram.drawio` 文件（重名时依次编号 `2`、`3`……），并把代码块替换为嵌入。**Convert diagram embed to code block** —— 光标所在行含 `![[….drawio]]` 嵌入时 —— 会把嵌入替换为包含该文件 XML 的 `` ```drawio `` 代码块；文件本身保留，链接上的 `#Page-…` 或 `|别名` 部分会被丢弃。
 
 **导出为普通图片（桌面端）：** **Export diagram as SVG** 与 **Export diagram as PNG** 命令 —— 也出现在 `.drawio` 及 `.drawio.svg`/`.drawio.png` 文件的右键菜单中 —— 会把图表导出为不含内嵌图表数据的普通 `.svg`/`.png` 图片，写入源文件所在文件夹（重名时依次编号 `2`、`3`……）。
+
+**从旧版 Diagrams 插件迁移（桌面端）：** 那个插件把图表存成普通 `.svg`，drawio XML 写在 SVG 的 `content` 属性里。运行 **Migrate diagrams from the old Diagrams plugin**（命令面板，或 **Settings → Drawio → Scan vault…**）会先列出匹配文件，确认后再改名为 `.drawio.svg`。Wikilink 会自动更新。本来就是 `.drawio` 的文件可以直接打开；迁完后可以禁用旧插件。
 
 ### 平台支持
 
@@ -70,6 +73,7 @@
 | 编辑图表（模态框 / 内联编辑器） | 是 | — | — |
 | 创建图表（侧边栏、命令、文件夹菜单） | 是 | — | — |
 | 离线编辑器（打包 webapp + 本地服务器） | 是 | — | — |
+| 迁移旧 Diagrams 插件的 `.svg` 文件 | 是 | — | — |
 
 手机和平板行为一致：处处可预览，但不能编辑。在这些设备上点按预览会提示编辑需要桌面端；创建入口也会被隐藏，因为它们的唯一用途就是打开编辑器。
 

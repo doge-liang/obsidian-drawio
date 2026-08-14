@@ -2,7 +2,7 @@ export const DRAWIO_VIEW_TYPE = 'drawio-file-view';
 export const DRAWIO_CODE_BLOCK_LANG = 'drawio';
 export const DRAWIO_FILE_EXT = 'drawio';
 
-/** Hosted drawio embed, used when the editor source is "Online" (the default). */
+/** Hosted drawio embed, used when the editor source is "Online". */
 export const ONLINE_DRAWIO_URL = 'https://embed.diagrams.net/';
 
 /** Pinned drawio version — MUST match scripts/fetch-drawio.mjs (guarded by

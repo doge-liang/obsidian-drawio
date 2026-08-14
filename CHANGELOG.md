@@ -8,6 +8,22 @@ The release workflow publishes the tagged version's section below as the GitHub
 release notes, so a version's section must be complete before its tag is pushed
 (see the Release process section of CLAUDE.md).
 
+## 0.7.0 - 2026-08-14
+
+### Added
+
+- **Migrate from the old Diagrams plugin** — **Migrate diagrams from the old
+  Diagrams plugin** (also **Settings → Drawio → Scan vault…**) lists ordinary
+  `.svg` files that contain embedded drawio data, then renames them to
+  `.drawio.svg` so they stay editable here. Wikilinks are updated through
+  Obsidian's usual rename flow; if it asks whether to update internal links,
+  choose **Just once** or **Always update**. Desktop only. Plain `.drawio`
+  files already open without conversion.
+- Clicking a `.drawio.svg` / `.drawio.png` embed now follows **Preview click
+  action** in Live Preview as well as Reading view. Opening one of those files
+  in Obsidian's image tab adds an **Edit** button — the `svg`/`png` extensions
+  are not claimed, so ordinary images are unchanged.
+
 ## 0.6.1 - 2026-08-14
 
 ### Fixed

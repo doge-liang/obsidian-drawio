@@ -1,5 +1,4 @@
 export type DrawioMode = 'online' | 'offline' | 'custom';
-export type StoreFormat = 'xml' | 'compressed';
 export type NewDiagramLocation = 'root' | 'current' | 'folder';
 /** File format for newly created diagrams: plain XML, or a dual-format image
  * (standard SVG/PNG with the diagram XML embedded — renders as an image
@@ -17,7 +16,6 @@ export interface DrawioSettings {
   serverIdleTimeout: number; // seconds
   followObsidianTheme: boolean;
   showLibraries: boolean;
-  storeFormat: StoreFormat;
   newDiagramLocation: NewDiagramLocation;
   /** Target folder for new diagrams when newDiagramLocation is 'folder'. */
   newDiagramFolder: string;
@@ -39,7 +37,6 @@ export const DEFAULT_SETTINGS: DrawioSettings = {
   serverIdleTimeout: 300,
   followObsidianTheme: true,
   showLibraries: true,
-  storeFormat: 'xml',
   newDiagramLocation: 'root',
   newDiagramFolder: '',
   newDiagramFormat: 'drawio',

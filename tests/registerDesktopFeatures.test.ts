@@ -30,7 +30,11 @@ function fakePlugin() {
   const raw = {
     app: {
       vault: { adapter: new FakeAdapter() },
-      workspace: { on: workspaceOn, getActiveFile },
+      workspace: {
+        on: workspaceOn, getActiveFile,
+        iterateAllLeaves: vi.fn(),
+        getActiveViewOfType: vi.fn(),
+      },
     },
     manifest: { dir: 'drawio-editor' },
     settings: {
@@ -42,6 +46,7 @@ function fakePlugin() {
     addCommand: vi.fn(),
     addRibbonIcon: vi.fn(),
     registerEvent: vi.fn(),
+    registerDomEvent: vi.fn(),
     isWebappInstalled: vi.fn(async () => true),
   };
   return { plugin: raw as unknown as DrawioPlugin, raw, workspaceOn, getActiveFile };
@@ -102,8 +107,18 @@ describe('registerDesktopFeatures', () => {
   it('registers a file-menu handler for the folder context menu', async () => {
     const { plugin, raw, workspaceOn } = fakePlugin();
     await registerDesktopFeatures(plugin);
-    expect(raw.registerEvent).toHaveBeenCalledTimes(1);
     expect(workspaceOn).toHaveBeenCalledWith('file-menu', expect.any(Function));
+  });
+
+  it('registers the migrate-legacy-diagrams command', async () => {
+    const { plugin, raw } = fakePlugin();
+    await registerDesktopFeatures(plugin);
+    expect(raw.addCommand).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'migrate-legacy-diagrams',
+        name: 'Migrate diagrams from the old Diagrams plugin',
+      }),
+    );
   });
 
   it('registers the two export commands', async () => {

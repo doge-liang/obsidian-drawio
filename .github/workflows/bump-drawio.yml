@@ -1,0 +1,61 @@
+name: Bump drawio
+
+# Weekly reminder + half-finished PR when jgraph/drawio has a newer stable
+# release. The PR only updates the version pin and the draw.war SHA-256;
+# CI then runs fetch-drawio / test / build. Expect the VIEWER_SCRIPT_LOADER
+# assertion to fail when the minified viewer shape changes — that is the
+# signal to update the pattern by hand, not a reason to auto-merge.
+on:
+  schedule:
+    - cron: '17 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: bump-drawio
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Check upstream and update pins
+        id: bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/bump-drawio.mjs
+
+      - name: Open or update pull request
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B chore/bump-drawio
+          git add src/constants.ts scripts/fetch-drawio.mjs drawio-version.json
+          git commit -m "chore: bump bundled drawio to $VERSION"
+          git push -u origin chore/bump-drawio --force
+          existing=$(gh pr list --head chore/bump-drawio --base main --json number --jq '.[0].number // empty')
+          if [ -z "$existing" ]; then
+            gh pr create --head chore/bump-drawio --base main \
+              --title "chore: bump bundled drawio to $VERSION" \
+              --body "$(cat <<EOF
+          Semi-automatic bump of the pinned drawio webapp to \`$VERSION\`.
+
+          This PR only updates \`DRAWIO_VERSION\`, the \`draw.war\` SHA-256 (in \`src/constants.ts\` and \`scripts/fetch-drawio.mjs\`), and the README badge source \`drawio-version.json\`. CI will download the archive and run the full test + build.
+
+          **Do not merge on green autopilot.** If \`VIEWER_SCRIPT_LOADER\` fails, update the pattern in \`esbuild.config.mjs\`. Grep the new \`viewer.min.txt\` for lookbehind / named groups / \`\\\\p{\` before shipping (see CLAUDE.md). After merge, offline-mode users need **Settings → Drawio → Update**.
+          EOF
+          )"
+          fi

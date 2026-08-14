@@ -20,6 +20,11 @@ describe('drawio version pinning', () => {
 
   // Both download paths must accept the exact same bytes; the script can't
   // import the TS constant, so the two literals are pinned to each other here.
+  it('matches drawio-version.json (README badge source)', () => {
+    const json = JSON.parse(readFileSync('drawio-version.json', 'utf8')) as { version: string };
+    expect(json.version).toBe(DRAWIO_VERSION);
+  });
+
   it('matches the draw.war SHA-256 pinned in scripts/fetch-drawio.mjs', () => {
     const script = readFileSync('scripts/fetch-drawio.mjs', 'utf8');
     const m = script.match(/WAR_SHA256 = '([^']+)'/);

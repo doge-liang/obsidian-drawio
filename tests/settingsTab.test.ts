@@ -38,6 +38,7 @@ describe('DrawioSettingTab', () => {
     expect(names).toContain('New diagram location');
     expect(names).toContain('Open diagram files read-only');
     expect(names).toContain('Preview click action');
+    expect(names).toContain('Migrate from the old Diagrams plugin');
     expect(names).not.toContain('Edit button action');
   });
 
@@ -79,6 +80,7 @@ describe('DrawioSettingTab', () => {
     expect(names).not.toContain('Open diagram files read-only');
     expect(names).not.toContain('Preview click action');
     expect(names).not.toContain('Edit button action');
+    expect(names).not.toContain('Migrate from the old Diagrams plugin');
     expect(names).toContain('Preview alignment');
     expect(names).toContain('Follow Obsidian theme');
   });
