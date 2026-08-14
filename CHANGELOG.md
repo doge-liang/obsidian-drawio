@@ -8,6 +8,14 @@ The release workflow publishes the tagged version's section below as the GitHub
 release notes, so a version's section must be complete before its tag is pushed
 (see the Release process section of CLAUDE.md).
 
+## 0.6.1 - 2026-08-14
+
+### Fixed
+
+- Hovering a preview no longer shows a centered **Edit** / **Explore** / **Open**
+  badge on top of the diagram. Clicking the preview still follows **Preview
+  click action**. The interactive viewer's **Edit** button is unchanged.
+
 ## 0.6.0 - 2026-08-12
 
 ### Added
