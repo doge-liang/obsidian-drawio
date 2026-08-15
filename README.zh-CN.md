@@ -9,11 +9,12 @@
 
 在笔记中直接嵌入、预览并编辑 [draw.io](https://www.drawio.com/)（diagrams.net）图表。预览在所有平台上完全离线渲染，图表以可读、便于 diff 的 XML 形式存储。
 
-![演示：悬停内嵌图表出现编辑提示，翻页浏览多页，然后在 Obsidian 内直接打开完整的 drawio 编辑器](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/demo.gif)
+![演示：翻页浏览内嵌图表，然后在 Obsidian 内直接打开完整的 drawio 编辑器](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/demo.gif)
 
 ## 亮点
 
-- **三种载体，一个插件** —— 行内 `` ```drawio `` 代码块、独立的 `.drawio` 文件（Excalidraw 风格：编辑器直接嵌在文件所在标签页中），以及 `![[file.drawio]]` 嵌入。三者都会在编辑视图和阅读视图中实时渲染 SVG 预览。桌面端点击预览的行为由 **Preview click action** 决定（默认打开编辑器）。
+- **三种载体，一个插件** —— 行内 `` ```drawio `` 代码块、独立的 `.drawio` 文件（Excalidraw 风格：编辑器直接嵌在文件所在标签页中），以及 `![[file.drawio]]` 嵌入。代码块和 `.drawio` 嵌入会在编辑视图和阅读视图中实时渲染 SVG 预览。桌面端点击预览的行为由 **Preview click action** 决定（默认打开编辑器）。双格式 `.drawio.svg` / `.drawio.png` 显示为普通图片，并在此保持可编辑。
+- **从旧版 Diagrams 插件迁移** —— 扫描库中带内嵌 drawio 数据的普通 `.svg`，一步改名为 `.drawio.svg`（桌面端）。
 - **预览始终离线** —— 预览由打包进插件的 drawio 自带 viewer 生成：无 iframe、无网络请求，桌面端与移动端皆然。
 - **编辑器可选离线** —— 编辑器默认使用打包的、完全离线的 drawio 构建，由本地服务器提供。商店安装不包含该构建（约 145 MB）；可在插件设置中一键安装，或将编辑器来源切换为 Online。
 - **可读、对 git 友好的存储** —— 图表保存为未压缩、经过美化排版的 XML，而非压缩后的二进制块，因此 diff、同步和版本历史都保持有意义。
@@ -38,7 +39,7 @@
 | **嵌入** | 在任意笔记中写 `![[your-diagram.drawio]]` | 点击预览（见 **Preview click action**；默认：快速编辑模态框） |
 | **`.drawio.svg` / `.drawio.png` 文件** | 同样的入口，先设置 **New diagram format** | 点击嵌入、图片页签上的 **Edit**，或右键 → **Edit drawio diagram** |
 
-以上载体都在编辑视图和阅读视图中渲染为预览，每次编辑都会自动保存回其源头 —— 代码块的 XML 或图表文件。当底层文件变化时，嵌入会自动重新渲染。
+代码块和 `.drawio` 嵌入在编辑视图和阅读视图中渲染为 SVG 预览。双格式文件显示为原生图片。每次编辑都会自动保存回其源头 —— 代码块的 XML 或图表文件。有对应文件的嵌入会在底层文件变化时自动重新渲染。
 
 **点击预览（桌面端）：** **设置 → Drawio → Preview click action** 决定点击预览时发生什么：
 
@@ -59,7 +60,7 @@
 
 **导出为普通图片（桌面端）：** **Export diagram as SVG** 与 **Export diagram as PNG** 命令 —— 也出现在 `.drawio` 及 `.drawio.svg`/`.drawio.png` 文件的右键菜单中 —— 会把图表导出为不含内嵌图表数据的普通 `.svg`/`.png` 图片，写入源文件所在文件夹（重名时依次编号 `2`、`3`……）。
 
-**从旧版 Diagrams 插件迁移（桌面端）：** 那个插件把图表存成普通 `.svg`，drawio XML 写在 SVG 的 `content` 属性里。运行 **Migrate diagrams from the old Diagrams plugin**（命令面板，或 **Settings → Drawio → Scan vault…**）会先列出匹配文件，确认后再改名为 `.drawio.svg`。Wikilink 会自动更新。本来就是 `.drawio` 的文件可以直接打开；迁完后可以禁用旧插件。
+**从旧版 Diagrams 插件迁移（桌面端）：** 那个插件把图表存成普通 `.svg`，drawio XML 写在 SVG 的 `content` 属性里。运行 **Migrate diagrams from the old Diagrams plugin**（命令面板，或 **Settings → Drawio → Scan vault…**）会先列出匹配文件，确认后再改名为 `.drawio.svg`。随后 Obsidian 会询问是否更新内部链接 —— 选 **Just once** 或 **Always update**，`![[diagram.svg]]` 才会变成 `![[diagram.drawio.svg]]`。本来就是 `.drawio` 的文件可以直接打开；迁完后可以禁用旧插件。
 
 ### 平台支持
 
@@ -94,6 +95,7 @@
 | **Follow Obsidian theme**（跟随 Obsidian 主题） | 让编辑器匹配 Obsidian 的亮色/暗色主题。 |
 | **Show shape libraries**（显示形状库） | 切换编辑器的形状面板。 |
 | **Server idle timeout**（服务器空闲超时） | 空闲达到此时长后停止本地服务器（最小 5 秒）。仅在 Offline 模式下有意义。 |
+| **Migrate from the old Diagrams plugin**（从旧版 Diagrams 插件迁移） | 桌面端：**Scan vault…** 会列出带内嵌 drawio 数据的普通 `.svg`，确认后改名为 `.drawio.svg`。 |
 
 在移动端只显示 **Preview alignment** 和 **Follow Obsidian theme** —— 其余设置项配置的是桌面编辑器。
 
@@ -128,6 +130,10 @@
 **`.drawio.svg` / `.drawio.png` 图片在别处编辑图表后显得过时。** 双格式文件把可编辑的 XML 存在图片内部。如果 XML 被改动却未重新导出（例如某次回退保存），图片可能落后于数据。在此打开该文件并保存一次 —— 编辑器会重新导出图片以与之匹配。
 
 **移动端什么都渲染不出来，或无法在移动端编辑。** 移动端按设计只做预览（代码块、嵌入，以及 `.drawio` 文件的只读视图，含多页导航）。请在桌面端打开库以进行编辑。
+
+**迁移扫描不到文件。** 只会列出 SVG 根元素 `content` 属性里带有 drawio XML 的普通 `.svg`。普通图片、已经是 `.drawio.svg` 的文件、以及 `.drawio` 文件都会被跳过。迁完后请禁用旧 Diagrams 插件，以免它继续接管所有 `.svg`。
+
+**迁完了，但笔记里的 `![[….svg]]` 嵌入坏了。** 改名后 Obsidian 会询问是否更新内部链接。选 **Just once** 或 **Always update** —— **Do not update** 会把旧路径留在笔记里。
 
 仍未解决？打开开发者控制台（**Ctrl/Cmd+Shift+I → Console**），复现问题，并在[提交 issue](https://github.com/doge-liang/obsidian-drawio/issues/new/choose) 时附上任何红色报错。
 

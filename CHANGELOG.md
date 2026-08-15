@@ -8,6 +8,14 @@ The release workflow publishes the tagged version's section below as the GitHub
 release notes, so a version's section must be complete before its tag is pushed
 (see the Release process section of CLAUDE.md).
 
+## 0.7.1 - 2026-08-15
+
+### Changed
+
+- The README demo and documentation now match current behavior: multi-page
+  preview, opening the editor, dual-format files, and migrating from the old
+  Diagrams plugin.
+
 ## 0.7.0 - 2026-08-14
 
 ### Added

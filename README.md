@@ -9,11 +9,12 @@
 
 Embed, preview, and edit [draw.io](https://www.drawio.com/) (diagrams.net) diagrams directly in your notes. Previews render fully offline on every platform, and diagrams are stored as readable, diff-friendly XML.
 
-![Demo: hover an embedded diagram to edit, flip its pages, then open the full drawio editor right inside Obsidian](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/demo.gif)
+![Demo: flip pages on an embedded diagram, then open the full drawio editor right inside Obsidian](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/demo.gif)
 
 ## Highlights
 
-- **Three surfaces, one plugin** — inline `` ```drawio `` code blocks, standalone `.drawio` files (Excalidraw-style: the editor lives right in the file's tab), and `![[file.drawio]]` embeds. All three render live SVG previews in both editing and reading views. On desktop, clicking a preview follows **Preview click action** (open the editor by default).
+- **Three surfaces, one plugin** — inline `` ```drawio `` code blocks, standalone `.drawio` files (Excalidraw-style: the editor lives right in the file's tab), and `![[file.drawio]]` embeds. Code blocks and `.drawio` embeds render live SVG previews in both editing and reading views. On desktop, clicking a preview follows **Preview click action** (open the editor by default). Dual-format `.drawio.svg` / `.drawio.png` files display as ordinary images and stay editable here.
+- **Migrate from the old Diagrams plugin** — scan the vault for ordinary `.svg` files with embedded drawio data and rename them to `.drawio.svg` in one step (desktop).
 - **Offline previews, always** — previews are produced by drawio's own viewer bundled into the plugin: no iframe, no network, on desktop and mobile alike.
 - **Offline editor, optionally** — the editor defaults to a bundled, fully offline drawio build served from a local server. Store installs don't include the bundle (~145 MB); install it with one click from the plugin settings, or switch the editor source to Online.
 - **Readable, git-friendly storage** — diagrams are saved as uncompressed, pretty-printed XML rather than a compressed blob, so diffs, sync, and version history stay meaningful.
@@ -38,7 +39,7 @@ The editor needs one of: the offline editor installed (one click in settings, ~5
 | **Embed** | `![[your-diagram.drawio]]` in any note | Click the preview (see **Preview click action**; default: quick-edit modal) |
 | **`.drawio.svg` / `.drawio.png` file** | Same entry points, after setting **New diagram format** | Click the embed, the **Edit** button on the image tab, or right-click → **Edit drawio diagram** |
 
-All render as previews in both editing and reading views, and every edit autosaves back to its source — the code block's XML or the diagram file. Embeds re-render automatically when the underlying file changes.
+Code blocks and `.drawio` embeds render as SVG previews in both editing and reading views. Dual-format files display as native images. Every edit autosaves back to its source — the code block's XML or the diagram file. File-backed embeds re-render automatically when the underlying file changes.
 
 **Clicking a preview (desktop):** **Settings → Drawio → Preview click action** chooses what a click does:
 
@@ -59,7 +60,7 @@ The interactive viewer works on `` ```drawio `` blocks, `![[file.drawio]]` embed
 
 **Exporting plain images (desktop):** the **Export diagram as SVG** and **Export diagram as PNG** commands — also on the context menu of `.drawio` and `.drawio.svg`/`.drawio.png` files — write a plain `.svg`/`.png` image of the diagram (without the embedded diagram data) next to the source file, numbered `2`, `3`, … if the name is taken.
 
-**Migrating from the old Diagrams plugin (desktop):** that plugin saved diagrams as ordinary `.svg` files with the drawio XML in the SVG `content` attribute. Run **Migrate diagrams from the old Diagrams plugin** (command palette, or **Settings → Drawio → Scan vault…**) to preview the matches and rename them to `.drawio.svg`. Wikilinks are updated automatically. Plain `.drawio` files open here as-is; you can disable the old plugin afterwards.
+**Migrating from the old Diagrams plugin (desktop):** that plugin saved diagrams as ordinary `.svg` files with the drawio XML in the SVG `content` attribute. Run **Migrate diagrams from the old Diagrams plugin** (command palette, or **Settings → Drawio → Scan vault…**) to preview the matches and rename them to `.drawio.svg`. Obsidian then asks whether to update internal links — choose **Just once** or **Always update** so `![[diagram.svg]]` becomes `![[diagram.drawio.svg]]`. Plain `.drawio` files open here as-is; you can disable the old plugin afterwards.
 
 ### Platform support
 
@@ -94,6 +95,7 @@ Phones and tablets behave identically: previews everywhere, no editing. Tapping 
 | **Follow Obsidian theme** | Match the editor to Obsidian's light/dark theme. |
 | **Show shape libraries** | Toggle the editor's shape panel. |
 | **Server idle timeout** | Stop the local server after this idle period (minimum 5 s). Only relevant in Offline mode. |
+| **Migrate from the old Diagrams plugin** | Desktop: **Scan vault…** lists ordinary `.svg` files with embedded drawio data and, after confirmation, renames them to `.drawio.svg`. |
 
 On mobile, only **Preview alignment** and **Follow Obsidian theme** are shown — the other settings configure the desktop editor.
 
@@ -128,6 +130,10 @@ Building from source also works and produces the same layout: run `npm run fetch
 **A `.drawio.svg` / `.drawio.png` image looks stale after I edited the diagram elsewhere.** Dual-format files keep the editable XML inside the image. If the XML is changed without re-exporting (for example by a fallback save), the picture can lag behind the data. Open the file here and save once — the editor re-exports the image to match.
 
 **Nothing renders on mobile, or I can't edit on mobile.** Mobile is preview-only by design (code blocks, embeds, and a read-only view for `.drawio` files, including multi-page navigation). Open the vault on a desktop to edit.
+
+**Migrate found no files.** Only ordinary `.svg` files whose SVG `content` attribute holds drawio XML are listed. Plain pictures, files already named `.drawio.svg`, and `.drawio` files are skipped. Disable the old Diagrams plugin after migrating so it no longer claims every `.svg`.
+
+**I migrated, but my `![[….svg]]` embeds are broken.** Obsidian asks whether to update internal links after the rename. Choose **Just once** or **Always update** — **Do not update** leaves the old paths in the note.
 
 Still stuck? Open the developer console (**Ctrl/Cmd+Shift+I → Console**), reproduce the problem, and include any red errors when you [file an issue](https://github.com/doge-liang/obsidian-drawio/issues/new/choose).
 
