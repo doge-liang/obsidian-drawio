@@ -5,10 +5,19 @@ name: Bump drawio
 # CI then runs fetch-drawio / test / build. Expect the VIEWER_SCRIPT_LOADER
 # assertion to fail when the minified viewer shape changes — that is the
 # signal to update the pattern by hand, not a reason to auto-merge.
+#
+# Because that hand-written follow-up lands on the same branch this workflow
+# force-pushes, the guard step checks for it and skips the run rather than
+# overwrite it. Dispatch with the force input to overwrite deliberately.
 on:
   schedule:
     - cron: '17 8 * * 1'
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Recreate the bump branch even when its open PR carries hand-written commits (they will be discarded)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -21,6 +30,11 @@ concurrency:
 jobs:
   bump:
     runs-on: ubuntu-latest
+    # Shared by the guard and the push step below — a drifted copy of either
+    # literal would silently disarm the guard, so both live here.
+    env:
+      BUMP_BRANCH: chore/bump-drawio
+      BOT_LOGIN: 'github-actions[bot]'
     steps:
       - uses: actions/checkout@v7
 
@@ -28,8 +42,81 @@ jobs:
         with:
           node-version: 20
 
+      # The last step force-pushes the bump branch, and that branch routinely
+      # grows hand-written commits: every drawio release remangles
+      # viewer.min.js, so the sanitizer snippets in esbuild.config.mjs have to
+      # be re-derived by hand on top of the bot's pin edits (see CLAUDE.md).
+      # Those commits cannot be regenerated, so stop rather than discard them.
+      #
+      # Deliberately scoped to an *open* PR: once it is merged or closed the
+      # branch is spent and safe to recreate. Testing "is the branch ahead of
+      # main" instead would look equivalent but deadlocks after a squash merge,
+      # where the original commits stay unreachable from main forever.
+      #
+      # Runs before the bump so a blocked week also skips downloading the
+      # ~53 MB draw.war that bump-drawio.mjs hashes.
+      - name: Guard against discarding hand-written commits
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BASE_URL: ${{ github.server_url }}/${{ github.repository }}/pull
+          FORCE: ${{ inputs.force }}
+        run: |
+          # Lease for the final push: the remote head as observed right now.
+          # A commit racing this run then rejects the push instead of being
+          # overwritten. Empty when the branch does not exist, which
+          # --force-with-lease reads as "the ref must stay absent".
+          remote_sha=$(git ls-remote origin "refs/heads/$BUMP_BRANCH" | cut -f1)
+          echo "remote_sha=$remote_sha" >> "$GITHUB_OUTPUT"
+          if [ "$FORCE" = "true" ]; then
+            echo "force input set; recreating $BUMP_BRANCH without the commit check."
+            echo "blocked=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Only a PR whose head lives in this repo counts: --head matches by
+          # branch name alone, so a fork's same-named branch could otherwise
+          # shadow (or spoof) the bot's PR.
+          pr=$(gh pr list --head "$BUMP_BRANCH" --base main --state open \
+            --json number,isCrossRepository \
+            --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')
+          if [ -z "$pr" ]; then
+            echo "No open bump PR; the branch is free to recreate."
+            echo "blocked=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Both git identities matter: amending the bot's commit keeps the
+          # bot as author while recording the human as committer. A login
+          # GitHub cannot resolve (unlinked email) counts as human — the
+          # check fails closed. No pipe here: a failed gh call must fail the
+          # step, not read as "no offending commits".
+          offending=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$pr/commits" \
+            --jq '.[] | select(((.author.login // "") != env.BOT_LOGIN) or ((.committer.login // "") != env.BOT_LOGIN)) | .sha')
+          if [ -z "$offending" ]; then
+            echo "PR #$pr carries bot commits only; safe to recreate."
+            echo "blocked=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Hand-written commits on PR #$pr:"
+          echo "$offending"
+          human=$(echo "$offending" | wc -l)
+          echo "blocked=true" >> "$GITHUB_OUTPUT"
+          echo "::warning::Bump skipped: PR #$pr carries $human hand-written commit(s) that a force push would discard. Merge or close it, then re-run this workflow."
+          {
+            echo "### Bump skipped"
+            echo
+            echo "[PR #$pr]($PR_BASE_URL/$pr) carries **$human hand-written commit(s)** on top of the bot's pin edits."
+            echo "This job force-pushes \`$BUMP_BRANCH\`, which would discard them, so no bump was applied."
+            echo
+            echo "Merge or close the PR and re-run **Actions → Bump drawio → Run workflow**, or dispatch with **force** to discard the commits."
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Green scheduled runs notify nobody; a PR comment reaches the PR's
+          # subscribers. --edit-last keeps repeat weeks from piling up.
+          gh pr comment "$pr" --edit-last --create-if-none --body \
+            "The weekly drawio bump skipped itself: this PR carries hand-written commits its force push would discard. Merge or close the PR to let the bump resume. Last skipped run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
       - name: Check upstream and update pins
         id: bump
+        if: steps.guard.outputs.blocked == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/bump-drawio.mjs
@@ -39,16 +126,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.bump.outputs.version }}
+          REMOTE_SHA: ${{ steps.guard.outputs.remote_sha }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B chore/bump-drawio
+          git config user.name "$BOT_LOGIN"
+          git config user.email "41898282+$BOT_LOGIN@users.noreply.github.com"
+          git checkout -B "$BUMP_BRANCH"
           git add src/constants.ts scripts/fetch-drawio.mjs drawio-version.json
           git commit -m "chore: bump bundled drawio to $VERSION"
-          git push -u origin chore/bump-drawio --force
-          existing=$(gh pr list --head chore/bump-drawio --base main --json number --jq '.[0].number // empty')
+          git push -u origin "$BUMP_BRANCH" --force-with-lease="$BUMP_BRANCH:$REMOTE_SHA"
+          existing=$(gh pr list --head "$BUMP_BRANCH" --base main \
+            --json number,isCrossRepository \
+            --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')
           if [ -z "$existing" ]; then
-            gh pr create --head chore/bump-drawio --base main \
+            gh pr create --head "$BUMP_BRANCH" --base main \
               --title "chore: bump bundled drawio to $VERSION" \
               --body "$(cat <<EOF
           Semi-automatic bump of the pinned drawio webapp to \`$VERSION\`.
