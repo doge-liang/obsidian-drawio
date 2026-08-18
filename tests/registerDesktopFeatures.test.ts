@@ -7,6 +7,7 @@ vi.mock('obsidian', async (importOriginal) => {
 
 import { FileSystemAdapter, Notice, TFile } from 'obsidian';
 import { registerDesktopFeatures } from '../src/desktop/registerDesktopFeatures';
+import { DRAWIO_VERSION } from '../src/constants';
 import type DrawioPlugin from '../src/main';
 
 class FakeAdapter extends FileSystemAdapter {
@@ -34,12 +35,16 @@ function fakePlugin() {
         on: workspaceOn, getActiveFile,
         iterateAllLeaves: vi.fn(),
         getActiveViewOfType: vi.fn(),
+        // Real Obsidian runs this once layout is up; running it inline keeps the
+        // tests synchronous while still exercising the deferred path.
+        onLayoutReady: vi.fn((cb: () => unknown) => { cb(); }),
       },
     },
     manifest: { dir: 'drawio-editor' },
     settings: {
       serverPortMin: 3000, serverPortMax: 3999, serverIdleTimeout: 300,
       drawioMode: 'offline',
+      webappVersionNoticeShownFor: '',
     },
     server: null as unknown,
     register: vi.fn(),
@@ -48,8 +53,16 @@ function fakePlugin() {
     registerEvent: vi.fn(),
     registerDomEvent: vi.fn(),
     isWebappInstalled: vi.fn(async () => true),
+    installedWebappVersion: vi.fn(async (): Promise<string | null> => DRAWIO_VERSION),
+    saveSettings: vi.fn(async () => {}),
   };
   return { plugin: raw as unknown as DrawioPlugin, raw, workspaceOn, getActiveFile };
+}
+
+/** The notices are raised inside onLayoutReady's callback, which the stub runs
+ * inline but cannot await — one macrotask hop lets its await chain settle. */
+async function flushNotices(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 interface RegisteredCommand {
@@ -176,14 +189,67 @@ describe('registerDesktopFeatures', () => {
     const { plugin, raw } = fakePlugin();
     raw.isWebappInstalled = vi.fn(async () => false);
     await registerDesktopFeatures(plugin);
+    await flushNotices();
     expect(Notice).toHaveBeenCalledWith(
       expect.stringContaining('offline editor'), expect.any(Number),
     );
   });
 
-  it('stays silent when the webapp is installed', async () => {
+  it('stays silent when the webapp is installed and matches the pin', async () => {
     const { plugin } = fakePlugin();
     await registerDesktopFeatures(plugin);
+    await flushNotices();
+    expect(Notice).not.toHaveBeenCalled();
+  });
+
+  // Version drift informs but never blocks: resolveBaseUrl() requires only that
+  // a webapp exist, so the editor keeps running the installed one either way.
+  it('notices an installed webapp older than the pinned version', async () => {
+    const { plugin, raw } = fakePlugin();
+    raw.installedWebappVersion = vi.fn(async () => 'v1.0.0');
+    await registerDesktopFeatures(plugin);
+    await flushNotices();
+    expect(Notice).toHaveBeenCalledWith(
+      expect.stringContaining('v1.0.0'), expect.any(Number),
+    );
+    expect(Notice).toHaveBeenCalledWith(
+      expect.stringContaining(DRAWIO_VERSION), expect.any(Number),
+    );
+  });
+
+  it('records the pinned version so the drift notice fires only once', async () => {
+    const { plugin, raw } = fakePlugin();
+    raw.installedWebappVersion = vi.fn(async () => 'v1.0.0');
+    await registerDesktopFeatures(plugin);
+    await flushNotices();
+    expect(raw.settings.webappVersionNoticeShownFor).toBe(DRAWIO_VERSION);
+    expect(raw.saveSettings).toHaveBeenCalled();
+
+    vi.mocked(Notice).mockClear();
+    await registerDesktopFeatures(plugin);
+    await flushNotices();
+    expect(Notice).not.toHaveBeenCalled();
+  });
+
+  // A later bump moves the pin, which must re-arm the notice.
+  it('notices again once the pin moves past the recorded version', async () => {
+    const { plugin, raw } = fakePlugin();
+    raw.installedWebappVersion = vi.fn(async () => 'v1.0.0');
+    raw.settings.webappVersionNoticeShownFor = 'v0.0.1';
+    await registerDesktopFeatures(plugin);
+    await flushNotices();
+    expect(Notice).toHaveBeenCalledWith(
+      expect.stringContaining('v1.0.0'), expect.any(Number),
+    );
+  });
+
+  // Hand-installed webapps carry no DRAWIO_VERSION file; with nothing to
+  // compare, staying quiet beats guessing.
+  it('stays silent when the installed webapp reports no version', async () => {
+    const { plugin, raw } = fakePlugin();
+    raw.installedWebappVersion = vi.fn(async () => null);
+    await registerDesktopFeatures(plugin);
+    await flushNotices();
     expect(Notice).not.toHaveBeenCalled();
   });
 
@@ -192,6 +258,7 @@ describe('registerDesktopFeatures', () => {
     raw.settings.drawioMode = 'online';
     raw.isWebappInstalled = vi.fn(async () => false);
     await registerDesktopFeatures(plugin);
+    await flushNotices();
     expect(Notice).not.toHaveBeenCalled();
   });
 });

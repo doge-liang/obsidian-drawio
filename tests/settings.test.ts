@@ -35,6 +35,9 @@ describe('DEFAULT_SETTINGS', () => {
     expect(DEFAULT_SETTINGS.readonlyFileView).toBe(false);
     expect(DEFAULT_SETTINGS.previewClickAction).toBe('editor');
     expect(DEFAULT_SETTINGS.editButtonAction).toBe('editor');
+    // Empty means "never shown", so a fresh install with a drifted webapp
+    // still gets its one notice.
+    expect(DEFAULT_SETTINGS.webappVersionNoticeShownFor).toBe('');
   });
 
   it('exposes exactly the documented settings keys (guards accidental shape drift)', () => {
@@ -54,6 +57,7 @@ describe('DEFAULT_SETTINGS', () => {
         'serverPortMax',
         'serverPortMin',
         'showLibraries',
+        'webappVersionNoticeShownFor',
       ].sort(),
     );
   });

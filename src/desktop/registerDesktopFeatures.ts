@@ -1,5 +1,6 @@
 import { FileSystemAdapter, Notice, TFile, TFolder } from 'obsidian';
 import { join } from 'node:path';
+import { DRAWIO_VERSION } from '../constants';
 import { ServerManager } from '../server/ServerManager';
 import { createNewDiagram } from '../file/createDiagram';
 import { DualFormatFileSource } from '../file/DualFormatFileSource';
@@ -107,13 +108,49 @@ export async function registerDesktopFeatures(plugin: DrawioPlugin): Promise<voi
     });
   }
 
-  // Lifecycle detection: offline mode selected but the webapp isn't installed.
-  // One notice per plugin load — the settings tab carries the actual installer.
-  if (plugin.settings.drawioMode === 'offline' && !(await plugin.isWebappInstalled())) {
+  // Lifecycle detection for offline mode, deferred to onLayoutReady: on a cold
+  // start onload() runs before the workspace finishes restoring, and a Notice
+  // raised that early is torn down with the boot DOM before anyone sees it —
+  // the state write lands, the toast does not. onLayoutReady is @since 0.11.0,
+  // far below minAppVersion, and fires immediately when layout is already up
+  // (i.e. when the plugin is enabled by hand rather than at startup).
+  plugin.app.workspace.onLayoutReady(() => { void reportOfflineEditorState(plugin); });
+}
+
+/**
+ * Surfaces the offline editor's state as a one-shot notice. Neither case
+ * blocks anything: `resolveBaseUrl()` requires only that a webapp exist, never
+ * that it match the pin, and previews always run the viewer bundled into
+ * main.js. So this informs; it never gates.
+ */
+async function reportOfflineEditorState(plugin: DrawioPlugin): Promise<void> {
+  if (plugin.settings.drawioMode !== 'offline') return;
+
+  if (!(await plugin.isWebappInstalled())) {
     new Notice(
       "Drawio: the offline editor isn't installed — open the plugin settings to " +
       'install it, or switch the editor source to Online.',
       10000,
     );
+    return;
   }
+
+  // A plugin update moved the pin: previews already run the newly bundled
+  // viewer while the editor still runs the installed webapp. Editing keeps
+  // working, so this fires once per pinned version rather than on every load —
+  // staying on an older webapp is a legitimate choice, not a fault to nag about.
+  // A hand-installed webapp carries no DRAWIO_VERSION file, reads as null, and
+  // is left alone: there is nothing to compare against.
+  const installed = await plugin.installedWebappVersion();
+  if (!installed || installed === DRAWIO_VERSION) return;
+  if (plugin.settings.webappVersionNoticeShownFor === DRAWIO_VERSION) return;
+
+  new Notice(
+    `Drawio: the offline editor is on drawio ${installed}, while this plugin ` +
+    `version bundles ${DRAWIO_VERSION}. Editing still works — update it in the ` +
+    'plugin settings to bring both in step.',
+    10000,
+  );
+  plugin.settings.webappVersionNoticeShownFor = DRAWIO_VERSION;
+  await plugin.saveSettings();
 }

@@ -27,6 +27,11 @@ export interface DrawioSettings {
   previewClickAction: PreviewClickAction;
   /** Desktop interactive viewer: Edit action for file-backed diagrams. */
   editButtonAction: EditButtonAction;
+  /** Last DRAWIO_VERSION whose out-of-date-webapp notice has been shown.
+   * Staying on an older webapp is a legitimate choice, so the notice fires
+   * once per pinned version instead of on every load. Internal state — it has
+   * no settings-tab control. */
+  webappVersionNoticeShownFor: string;
 }
 
 export const DEFAULT_SETTINGS: DrawioSettings = {
@@ -44,4 +49,5 @@ export const DEFAULT_SETTINGS: DrawioSettings = {
   readonlyFileView: false,
   previewClickAction: 'editor',
   editButtonAction: 'editor',
+  webappVersionNoticeShownFor: '',
 };

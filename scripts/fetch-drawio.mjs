@@ -7,11 +7,11 @@ import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
 
-const DRAWIO_VERSION = 'v30.3.11';
+const DRAWIO_VERSION = 'v31.1.8';
 // SHA-256 of the pinned draw.war — MUST match DRAWIO_WAR_SHA256 in
 // src/constants.ts (guarded by tests/drawioVersionSync.test.ts), so the
 // build-time fetch and the runtime installer accept the exact same bytes.
-const WAR_SHA256 = '8fd2efb34c2a4792ba24c2583500d6e9e0b893b02f288f4ab9da545a7aaeb076';
+const WAR_SHA256 = '46389bd60810f9775cd463c9eff4f4f8335f10926d613b0606ad4e978f46d49b';
 const WAR_URL = `https://github.com/jgraph/drawio/releases/download/${DRAWIO_VERSION}/draw.war`;
 const OUT_DIR = join(process.cwd(), 'webapp');
 

@@ -59,7 +59,8 @@ These are separate; a change to one rarely affects the other.
 ## Build / test / dev
 
 - `npm run fetch-drawio` — **run once before building.** Downloads pinned drawio
-  (`draw.war`, v30.0.4) into `webapp/` and copies `js/viewer.min.js` →
+  (`draw.war`, version pinned by `DRAWIO_VERSION` in `scripts/fetch-drawio.mjs`,
+  kept in lockstep with `src/constants.ts` by a test) into `webapp/` and copies `js/viewer.min.js` →
   `src/preview/viewer.min.txt`. Both `webapp/` and `viewer.min.txt` are **gitignored**
   (so a fresh clone must run this first). Needs network + `unzip` or `python3`.
 - `npm run build` — `tsc -noEmit` then esbuild production bundle → `main.js` (gitignored).
@@ -129,13 +130,20 @@ name; the manifest id inside is `drawio-editor`).
     any later same-window mxfile parse that doesn't set a page first.
     (`tests/embedPageIsolation.dom.test.ts`, which also guards that flipping one
     multi-page preview never moves another — page state is strictly per-preview.)
-- **Build-time viewer sanitization** (`esbuild.config.mjs`,
-  `sanitizeDrawioViewerPlugin`). drawio's `viewer.min.js` contains one
-  external-`<script>` loader (a MathJax-from-CDN helper, unused offline). It is
-  stripped at build time, with an **assertion that exactly one match is removed** —
-  so a drawio version bump that changes the minified shape **fails the build loudly**
-  instead of silently shipping it. If you bump drawio, expect to update the
-  `VIEWER_SCRIPT_LOADER` pattern.
+- **Build-time viewer sanitization** (`scripts/sanitize-viewer.mjs`, applied by
+  `sanitizeDrawioViewerPlugin` in `esbuild.config.mjs`). drawio's `viewer.min.js`
+  contains `createElement("script")` sites the review scanner flags: an
+  external-`<script>` MathJax-from-CDN loader (deleted — dead offline) and, since
+  v31, `addSvgIconHandlers`' element-creation ternary (collapsed to its
+  `createElementNS(NS_SVG, "script")` branch — identical behavior on every
+  runtime the plugin reaches, no scanner literal). Each snippet asserts
+  **exactly one match** — so a drawio version bump that changes the minified
+  shape **fails the build loudly** instead of silently shipping it; expect to
+  re-derive the snippets in `scripts/sanitize-viewer.mjs` on every bump. The
+  same shared transform is exercised against the real blob by
+  `tests/sanitizeViewer.test.ts` (parses + boots GraphViewer), and
+  `tests/viewerBlobSafety.test.ts` gates the mobile-fatal regex constructs
+  (see the regex checklist below); both skip when `viewer.min.txt` is absent.
 - **`svgSanitizer.ts` is a custom scrub, NOT DOMPurify.** DOMPurify strips
   `foreignObject`, which erases drawio's `html=1` text labels. Do **not** swap back to
   DOMPurify. It still removes script/embedding elements, `on*` handlers,
@@ -193,9 +201,16 @@ name; the manifest id inside is `drawio-editor`).
   pin, keeping the webapp in lockstep with the bundled viewer). `fflate` is
   a devDependency inlined by esbuild. The pinned version lives in
   `src/constants.ts` (`DRAWIO_VERSION`) and a test asserts it matches
-  `scripts/fetch-drawio.mjs`. A load-time notice
-  (`registerDesktopFeatures.ts`) points offline-mode users at settings when
-  the webapp is missing.
+  `scripts/fetch-drawio.mjs`. Two load-time notices
+  (`registerDesktopFeatures.ts`) point offline-mode users at settings: one when
+  the webapp is missing, one when the installed webapp's `DRAWIO_VERSION`
+  differs from the pin. **Version drift never blocks** — `resolveBaseUrl()`
+  checks only that a webapp exists, never that it matches, so the editor keeps
+  running whatever is installed while previews use the newly bundled viewer.
+  The drift notice therefore only informs, and fires once per pinned version
+  (recorded in the internal `webappVersionNoticeShownFor` setting) because
+  staying on an older webapp is a legitimate choice; a hand-installed webapp
+  with no `DRAWIO_VERSION` file reads as null and is left alone.
 - **Popout-window safety**: use `activeDocument`/`activeWindow` (baseline-supported),
   not `document`/`window`, in render paths.
 - **A popped-out `.drawio` editor needs BOTH directions of the `postMessage` bridge
@@ -411,9 +426,10 @@ cutting a release — cheaper than a review round-trip.
   *captured* delimiter with only a lookahead, then re-merge the pairs).
 - [ ] `eslint-plugin-obsidianmd`'s `regex-lookbehind` rule catches lookbehind
   specifically, but only lints `src/**/*.ts` — it does not scan the vendored
-  `viewer.min.txt`. If you ever change what's vendored there (see
-  `scripts/fetch-drawio.mjs`), grep the new blob for `(?<=`, `(?<!`, `(?<[a-zA-Z`,
-  and `\p{` before shipping.
+  `viewer.min.txt`. That blob is gated by `tests/viewerBlobSafety.test.ts`
+  (runs in CI after `fetch-drawio`; asserts zero `(?<=`, `(?<!`, named groups,
+  and `\p{`/`\P{` occurrences). If the test fires after a bump, inspect the hit
+  before shipping — do not just relax the assertion.
 
 **Anything that dynamically creates DOM elements or runs code:**
 - [ ] Never `doc.createElement('script')` — even for our own vendored, offline,
