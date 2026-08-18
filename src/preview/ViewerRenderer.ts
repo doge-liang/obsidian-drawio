@@ -120,6 +120,24 @@ export function renderPreview(el: HTMLElement, xml: string, opts: RenderOptions)
 }
 
 /**
+ * GraphViewer positions the diagram against an 8px top/left border but sizes the
+ * SVG as `bounds + 25`, so the right/bottom margins come out 8px wider than the
+ * left/top ones and the diagram sits visibly off-centre — ~1.4% of the width on a
+ * short code block. Shifting the viewBox ORIGIN by half that surplus re-centres it
+ * without touching the diagram or resizing the box.
+ *
+ * Both constants are GraphViewer's, not ours; tests/viewerBorderContract.dom.test.ts
+ * renders a known geometry through the REAL vendored viewer and fails if either one
+ * moves — that is the signal to re-derive this shift, not to relax the test.
+ */
+export const VIEWER_BORDER = 8;
+export const VIEWER_SIZE_PADDING = 25;
+/** (25 - 2*8) / 2 = 4.5 in GraphViewer's own terms, but its shapes land on a
+ *  half-pixel grid, which measures out as 8.5 / 16.5 gutters — so the shift that
+ *  actually equalises them is 4. */
+export const VIEWBOX_CENTERING_SHIFT = (VIEWER_SIZE_PADDING - 2 * VIEWER_BORDER - 1) / 2;
+
+/**
  * Sanitize GraphViewer's <svg> and make it self-contained: give it an explicit
  * `viewBox`/`width`/`height` from the diagram bounds (GraphViewer encodes those as
  * the SVG's `min-width`/`min-height`) and strip the inline `width:100%`/`height:100%`
@@ -147,7 +165,9 @@ function extractSizedSvg(svg: SVGSVGElement, targetDoc: Document): Node | null {
   if (!out) return null;
 
   if (w > 0 && h > 0) {
-    out.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    // Shift the origin, not the size: same box, diagram centred inside it.
+    const origin = -VIEWBOX_CENTERING_SHIFT;
+    out.setAttribute('viewBox', `${origin} ${origin} ${w} ${h}`);
     out.setAttribute('width', String(w));
     out.setAttribute('height', String(h));
     // Inline width/height:100% (and absolute positioning) would override the
