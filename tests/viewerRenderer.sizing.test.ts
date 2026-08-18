@@ -18,7 +18,7 @@ vi.mock('../src/preview/loadViewer', () => ({
   getGraphViewer: () => fakeViewer,
 }));
 
-import { renderPreview } from '../src/preview/ViewerRenderer';
+import { renderPreview, VIEWBOX_CENTERING_SHIFT } from '../src/preview/ViewerRenderer';
 
 function patchEl(el: HTMLElement) {
   (el as any).empty = function () { while (this.firstChild) this.removeChild(this.firstChild); };
@@ -42,8 +42,12 @@ describe('renderPreview standalone-svg sizing', () => {
 
     const svg = el.querySelector('svg');
     expect(svg).toBeTruthy();
-    // Bounds come from the GraphViewer min-width/min-height (185x85).
-    expect(svg!.getAttribute('viewBox')).toBe('0 0 185 85');
+    // Size comes from the GraphViewer min-width/min-height (185x85); the origin
+    // is shifted negative to re-centre the diagram, which GraphViewer itself
+    // leaves 8px left-of-centre (see VIEWBOX_CENTERING_SHIFT and
+    // tests/viewerBorderContract.dom.test.ts).
+    const o = -VIEWBOX_CENTERING_SHIFT;
+    expect(svg!.getAttribute('viewBox')).toBe(`${o} ${o} 185 85`);
     expect(svg!.getAttribute('width')).toBe('185');
     expect(svg!.getAttribute('height')).toBe('85');
     // The inline width/height:100% (which would stretch a standalone svg) is gone.

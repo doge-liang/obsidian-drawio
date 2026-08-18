@@ -144,6 +144,19 @@ name; the manifest id inside is `drawio-editor`).
   `tests/sanitizeViewer.test.ts` (parses + boots GraphViewer), and
   `tests/viewerBlobSafety.test.ts` gates the mobile-fatal regex constructs
   (see the regex checklist below); both skip when `viewer.min.txt` is absent.
+- **Previews shift the viewBox origin to re-centre the diagram**
+  (`ViewerRenderer.ts`, `VIEWBOX_CENTERING_SHIFT`). GraphViewer insets the
+  diagram by an 8px border but sizes the SVG as `bounds + 25`, so its own output
+  sits ~8 user units left of centre (measured: 13.4px vs 26.0px gutters on an
+  embed, 30.2 vs 58.5 on a code block). We emit `viewBox="-4 -4 w h"` — origin
+  shifted, size untouched — which equalises them exactly. **The shift is derived
+  from GraphViewer's constants, not chosen**: `tests/viewerBorderContract.dom.test.ts`
+  measures the border, the padding, and the half-pixel shape alignment off the
+  REAL vendored viewer and recomputes the shift from them, so a drawio bump that
+  moves any of the three fails loudly. Re-derive the shift then; don't relax the
+  test. Note `svg.getBBox()` is NOT a usable content bound here — it unions in a
+  zero-sized structural `<g>` at the origin and reports the diagram as far wider
+  and further left than it is.
 - **`svgSanitizer.ts` is a custom scrub, NOT DOMPurify.** DOMPurify strips
   `foreignObject`, which erases drawio's `html=1` text labels. Do **not** swap back to
   DOMPurify. It still removes script/embedding elements, `on*` handlers,
