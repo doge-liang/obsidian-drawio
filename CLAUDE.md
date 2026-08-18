@@ -201,9 +201,16 @@ name; the manifest id inside is `drawio-editor`).
   pin, keeping the webapp in lockstep with the bundled viewer). `fflate` is
   a devDependency inlined by esbuild. The pinned version lives in
   `src/constants.ts` (`DRAWIO_VERSION`) and a test asserts it matches
-  `scripts/fetch-drawio.mjs`. A load-time notice
-  (`registerDesktopFeatures.ts`) points offline-mode users at settings when
-  the webapp is missing.
+  `scripts/fetch-drawio.mjs`. Two load-time notices
+  (`registerDesktopFeatures.ts`) point offline-mode users at settings: one when
+  the webapp is missing, one when the installed webapp's `DRAWIO_VERSION`
+  differs from the pin. **Version drift never blocks** — `resolveBaseUrl()`
+  checks only that a webapp exists, never that it matches, so the editor keeps
+  running whatever is installed while previews use the newly bundled viewer.
+  The drift notice therefore only informs, and fires once per pinned version
+  (recorded in the internal `webappVersionNoticeShownFor` setting) because
+  staying on an older webapp is a legitimate choice; a hand-installed webapp
+  with no `DRAWIO_VERSION` file reads as null and is left alone.
 - **Popout-window safety**: use `activeDocument`/`activeWindow` (baseline-supported),
   not `document`/`window`, in render paths.
 - **A popped-out `.drawio` editor needs BOTH directions of the `postMessage` bridge
