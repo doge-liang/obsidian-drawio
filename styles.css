@@ -104,7 +104,7 @@ body.drawio-align-left .drawio-preview svg { margin: 0; }
 .drawio-edit-action-row + .drawio-edit-action-row {
   border-top: 1px solid var(--background-modifier-border);
 }
-.drawio-edit-action-label { color: var(--text-normal); font-weight: var(--font-semibold); }
+.drawio-edit-action-label { color: var(--text-normal); }
 .drawio-edit-action-description { color: var(--text-muted); font-size: var(--font-ui-smaller); }
 .drawio-edit-action-control { flex: 0 0 auto; }
 .drawio-edit-action-control select { max-width: 240px; }
