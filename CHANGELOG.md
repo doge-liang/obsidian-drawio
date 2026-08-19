@@ -8,6 +8,37 @@ The release workflow publishes the tagged version's section below as the GitHub
 release notes, so a version's section must be complete before its tag is pushed
 (see the Release process section of CLAUDE.md).
 
+## Unreleased
+
+### Changed — action may be required
+
+- With **Preview click action → Interactive viewer**, a code-block preview
+  now takes the diagram's own width (centred, or left-aligned per **Preview
+  alignment**) instead of stretching to the full note width; wide diagrams
+  still fill the line. Diagrams drawn at small sizes therefore appear smaller
+  than before in code blocks — use the wheel, **Fit**, or **Full screen** to
+  look closer. Embeds and the read-only file tab already behaved this way.
+
+### Fixed
+
+- The interactive viewer now keeps fitting the diagram as the layout changes:
+  narrowing or widening a pane, toggling a sidebar, or entering and leaving
+  full screen re-derives the preview height from the new width (no more blank
+  bands above and below), keeps the current zoom level, and re-centres the
+  view. Editing a diagram in the editor still re-fits its previews.
+- The diagram no longer sits flush against the viewport edge: **Fit** and the
+  initial view leave a margin around it, so shapes stay clear of the border
+  and the toolbar, and the picture does not change when the preview is
+  clicked.
+- Dragging an embed's resize handle shorter no longer also shrinks the embed's
+  width; the diagram is centred in the shorter box and the width stays put.
+  A persisted height behaves the same after reopening the note.
+- Automatic preview heights are capped at about 90% of the pane (or window)
+  height, so a tall diagram is visible whole without scrolling.
+- The toolbar and resize handle now align with the preview box itself — in
+  code blocks narrower than the note, and in the read-only file tab, where
+  the handle used to sit off the box's bottom edge by the pane's padding.
+
 ## 0.7.1 - 2026-08-15
 
 ### Changed

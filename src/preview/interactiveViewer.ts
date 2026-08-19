@@ -37,20 +37,70 @@ const MAX_SCALE = 8;
 const SCALE_EPSILON = 0.0001;
 /** Pointer travel (px) below which a resize gesture is a click, not a resize. */
 const RESIZE_COMMIT_THRESHOLD = 2;
+/**
+ * Breathing room between the diagram and the viewport edge at Fit, in CSS px.
+ * GraphViewer's own ~12 unit gutter alone left shapes touching the accent
+ * border and the toolbar sitting on top of the diagram's corner.
+ */
+export const FIT_PADDING_PX = 24;
+/** The top edge reserves the toolbar's band (8px offset + ~34px bar) as well,
+ *  so at Fit the toolbar floats over empty space, not over the first shape —
+ *  which a tall, narrow flowchart otherwise loses behind it. */
+export const FIT_PADDING_TOP_PX = 44;
+/** ...never more than this share of the viewport's smaller side, so a tiny or
+ *  very flat viewport keeps most of its area for the diagram. */
+const FIT_PADDING_MAX_SHARE = 0.1;
+/** Automatic viewports stop at this share of the visible pane (or window) height
+ *  so a tall diagram can always be seen whole without scrolling the note. */
+export const AUTO_HEIGHT_VIEWPORT_SHARE = 0.9;
+/** Narrowest viewport; keeps the toolbar inside the frame for tiny diagrams. */
+export const MIN_VIEWPORT_WIDTH = 240;
+/**
+ * Scroll containers whose visible height bounds an automatic viewport — the
+ * nearest of Live Preview's CodeMirror scroller, the Reading-view scroller,
+ * or a file view's content pane. Falls back to the window when none encloses
+ * the preview (a detached render, or a future Obsidian that renames them).
+ */
+const SCROLL_CONTAINER_SELECTOR = '.cm-scroller, .markdown-preview-view, .view-content';
 
 /**
- * Minimal interactive-viewer lifecycle and activation shell.
+ * In-place zoom/pan viewer over a rendered preview SVG.
  *
- * Zoom, pan, Edit, and fullscreen are intentionally added by later stages. This
- * walking skeleton only owns activation, exit, a placeholder toolbar, and cleanup.
+ * Geometry model — three boxes, all in the SVG's own user units:
+ *  - `contentBox`: the SVG's intrinsic viewBox as produced by ViewerRenderer
+ *    (the diagram bounds plus GraphViewer's gutter). Never changes per bind.
+ *  - `baseBox`: what Fit shows — the content box padded by FIT_PADDING_PX of
+ *    screen space (FIT_PADDING_TOP_PX on top, where the toolbar floats) and
+ *    widened/heightened to the viewport's aspect ratio, so at 1x the diagram
+ *    sits clear of the border and the toolbar and the viewBox maps onto the
+ *    viewport without letterboxing. Re-derived whenever the viewport's pixel
+ *    size changes (pane resize, manual resize, fullscreen).
+ *  - `currentBox`: the zoomed/panned window into `baseBox`; scale is
+ *    `baseBox.width / currentBox.width`, panning is clamped to `baseBox`.
+ *
+ * Layout model: the preview is wrapped in a block `.drawio-interactive-frame`
+ * that owns the viewport's WIDTH — `min(diagram natural width, 100%)` with a
+ * floor of MIN_VIEWPORT_WIDTH — and hosts the toolbar and the resize handle,
+ * so they align with the viewport rather than the (possibly wider) root. The
+ * explicit width matters: an `![[embed]]` root is an inline-block, and a
+ * `width:100%;height:100%` SVG inside one makes the block's shrink-to-fit
+ * width depend on the SVG's intrinsic ratio times the height we set — a
+ * feedback loop that both collapsed the embed when its height was reduced and
+ * would oscillate under any height-from-width rule. The preview's HEIGHT is
+ * automatic (diagram aspect at that width, capped to the visible pane) until
+ * a user or a persisted value fixes it. A ResizeObserver keeps both the
+ * automatic height and the base box in step with layout changes.
  */
 export class InteractiveViewerController extends MarkdownRenderChild {
   private active = false;
   private disposed = false;
   private svg: SVGSVGElement | null = null;
+  private contentBox: ViewBox | null = null;
+  private naturalWidth = 0;
   private baseBox: ViewBox | null = null;
   private currentBox: ViewBox | null = null;
   private frame: number | null = null;
+  private viewportFrame: HTMLElement;
   private toolbar: HTMLElement;
   private zoomInButton!: HTMLButtonElement;
   private zoomOutButton!: HTMLButtonElement;
@@ -69,8 +119,8 @@ export class InteractiveViewerController extends MarkdownRenderChild {
   private panStartX = 0;
   private panStartY = 0;
   private panStartBox: ViewBox | null = null;
-  /** Watches a detached/hidden preview until layout gives it a real width. */
-  private measureObserver: ResizeObserver | null = null;
+  /** Follows the viewport's layout size for the controller's lifetime. */
+  private viewportObserver: ResizeObserver | null = null;
 
   constructor(
     private root: HTMLElement,
@@ -80,6 +130,7 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     super(root);
     this.doc = root.ownerDocument;
     this.root.classList.add('drawio-interactive');
+    this.viewportFrame = this.wrapPreview();
     this.toolbar = this.createToolbar();
     this.resizeHandle = this.createResizeHandle();
     this.root.addEventListener('click', this.onRootClick);
@@ -97,7 +148,7 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.opts.initialHeight = next;
     this.manuallyResized = true;
     if (this.viewportInitialized && Math.abs(this.viewportHeight - next) < 0.5) return;
-    if (!this.svg || !this.baseBox) return;
+    if (!this.svg || !this.contentBox) return;
     this.applyViewport(this.svg, next);
     this.fit();
   }
@@ -111,8 +162,13 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.cancelFrame();
     this.svg?.classList.remove('drawio-interactive-svg');
     this.svg = svg;
-    this.baseBox = svg ? parseViewBox(svg.getAttribute('viewBox')) : null;
-    this.currentBox = this.baseBox ? { ...this.baseBox } : null;
+    this.contentBox = svg ? parseViewBox(svg.getAttribute('viewBox')) : null;
+    this.naturalWidth = svg && this.contentBox ? naturalWidthOf(svg, this.contentBox) : 0;
+    // Until the viewport has a layout to fit into, Fit is the bare content
+    // box; syncGeometry swaps in the padded, aspect-fitted one at the first
+    // measurement — zoom and pan work on whichever is current.
+    this.baseBox = this.contentBox ? { ...this.contentBox } : null;
+    this.currentBox = this.contentBox ? { ...this.contentBox } : null;
     this.viewportInitialized = false;
     this.manuallyResized = preservedHeight === null
       ? this.opts.initialHeight !== undefined
@@ -120,10 +176,13 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.deactivate();
     this.updateControls();
     if (this.opts.isEnabled?.() === false) return;
-    if (preservedHeight !== null && svg && this.baseBox) {
+    if (preservedHeight !== null && svg && this.contentBox) {
+      // A page flip keeps the insertion's footprint — width as well as height —
+      // and fits the new page inside it.
       this.applyViewport(svg, preservedHeight);
       return;
     }
+    this.applyFrameWidth();
     this.initializeViewport();
   }
 
@@ -165,14 +224,16 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.doc.removeEventListener('pointercancel', this.onResizeEnd);
     this.doc.removeEventListener('pointermove', this.onPanMove);
     this.doc.removeEventListener('pointerup', this.onPanEnd);
-    this.disconnectMeasureObserver();
+    this.disconnectViewportObserver();
     this.cancelFrame();
     this.toolbar.remove();
     this.resizeHandle.remove();
+    this.unwrapPreview();
     this.preview.classList.remove('drawio-interactive-viewport');
     this.preview.style.removeProperty('height');
-    this.svg?.classList.remove('drawio-interactive-svg');
+    this.releaseSvg();
     this.svg = null;
+    this.contentBox = null;
     this.baseBox = null;
     this.currentBox = null;
   }
@@ -213,14 +274,38 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     if (this.disposed) return;
     this.addDocumentListeners(current);
     // A ResizeObserver belongs to one window; re-arm it from the new one.
-    if (this.measureObserver) {
-      this.disconnectMeasureObserver();
-      this.observeUntilMeasurable();
+    if (this.viewportObserver) {
+      this.disconnectViewportObserver();
+      this.observeViewport();
     }
   }
 
+  /**
+   * Interpose a block frame between the preview and its parent. The frame is
+   * the viewport's sizing and positioning context (see the class comment) and
+   * survives page flips, which re-render INTO the preview (`preview.empty()`)
+   * and would wipe anything placed inside it.
+   */
+  private wrapPreview(): HTMLElement {
+    const frame = this.doc.createElement('div');
+    frame.classList.add('drawio-interactive-frame');
+    const parent = this.preview.parentNode;
+    if (parent) parent.insertBefore(frame, this.preview);
+    else this.root.appendChild(frame);
+    frame.appendChild(this.preview);
+    return frame;
+  }
+
+  private unwrapPreview(): void {
+    const frame = this.viewportFrame;
+    if (this.preview.parentNode === frame) {
+      frame.parentNode?.insertBefore(this.preview, frame);
+    }
+    frame.remove();
+  }
+
   private createToolbar(): HTMLElement {
-    const toolbar = this.root.createDiv({ cls: 'drawio-interactive-toolbar' });
+    const toolbar = this.viewportFrame.createDiv({ cls: 'drawio-interactive-toolbar' });
     toolbar.setAttribute('aria-label', 'Interactive viewer controls');
     this.zoomInButton = this.createButton(toolbar, '+', 'Zoom in', () => this.zoomBy(BUTTON_ZOOM_STEP));
     this.zoomOutButton = this.createButton(toolbar, '−', 'Zoom out', () => this.zoomBy(1 / BUTTON_ZOOM_STEP));
@@ -239,12 +324,10 @@ export class InteractiveViewerController extends MarkdownRenderChild {
   }
 
   private createResizeHandle(): HTMLElement {
-    // Anchor the handle to the preview's own positioned wrapper when there is
-    // one (the read-only file view nests the preview inside a padded content
-    // element); positioning against the outer root would leave the handle
-    // offset from the viewport's real bottom edge by that padding.
-    const host = this.preview.parentElement ?? this.root;
-    const handle = host.createDiv({ cls: 'drawio-interactive-resize-handle' });
+    // Lives in the frame, so it spans exactly the viewport's width and sits on
+    // its bottom edge by CSS alone — whatever padding or banner the host puts
+    // around the preview.
+    const handle = this.viewportFrame.createDiv({ cls: 'drawio-interactive-resize-handle' });
     handle.setAttribute('role', 'separator');
     handle.setAttribute('aria-label', 'Resize interactive viewer');
     handle.setAttribute('aria-orientation', 'horizontal');
@@ -296,6 +379,10 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     this.fullscreenButton.hidden = fullscreen;
     this.closeFullscreenButton.hidden = !fullscreen;
     this.closeFullscreenButton.disabled = !fullscreen;
+    // The viewport's size just changed (or is about to, once the host lays
+    // the fullscreen element out); the observer catches the latter, this
+    // covers hosts without one.
+    this.refreshViewport();
   };
 
   private onWheel = (event: WheelEvent): void => {
@@ -446,74 +533,188 @@ export class InteractiveViewerController extends MarkdownRenderChild {
   private onWindowResize = (): void => {
     // Same isEnabled gate as every other entry point: after the click action
     // is switched away, a window resize must not re-apply the viewport.
-    if (this.manuallyResized || this.opts.isEnabled?.() === false) return;
-    this.initializeViewport(true);
+    if (this.disposed || this.opts.isEnabled?.() === false) return;
+    if (!this.viewportInitialized) this.initializeViewport();
+    else this.refreshViewport();
   };
 
-  private initializeViewport(force = false): void {
-    if (this.viewportInitialized && !force) return;
-    const base = this.baseBox;
+  private initializeViewport(): void {
+    if (this.viewportInitialized) return;
+    const content = this.contentBox;
     const svg = this.svg;
     const win = this.doc.defaultView;
-    if (!base || !svg || !win) return;
+    if (!content || !svg || !win) return;
     if (this.opts.initialHeight !== undefined) {
       this.applyViewport(svg, clamp(this.opts.initialHeight, MIN_VIEWPORT_HEIGHT, MAX_VIEWPORT_HEIGHT));
       return;
     }
-    const width = this.preview.getBoundingClientRect().width
-      || this.root.getBoundingClientRect().width;
+    const width = this.measureWidth();
     if (width <= 0) {
       // Detached or hidden (code blocks and Reading-view sections render
       // detached): measuring now would produce a bogus height. Watch for the
       // first real layout instead — otherwise a tall diagram renders at full
       // height until the user clicks or resizes the OS window (Obsidian pane
       // drags don't fire window resize, and PDF export never clicks).
-      this.observeUntilMeasurable();
+      this.observeViewport();
       return;
     }
-    const availableHeight = Math.max(1, win.innerHeight);
-    const height = clamp(
-      Math.min(width * base.height / base.width, availableHeight),
-      MIN_VIEWPORT_HEIGHT,
-      MAX_VIEWPORT_HEIGHT,
-    );
-    this.applyViewport(svg, height);
+    this.applyViewport(svg, this.autoHeightFor(width, content, win));
   }
 
-  private observeUntilMeasurable(): void {
+  /**
+   * Layout moved under an initialized viewport (pane resize, sidebar toggle,
+   * fullscreen, a height change of our own): re-derive an automatic height
+   * from the new width and re-fit the base box to the new aspect.
+   */
+  private refreshViewport(): void {
+    if (this.disposed || !this.viewportInitialized) return;
+    const content = this.contentBox;
+    const svg = this.svg;
     const win = this.doc.defaultView;
-    if (!win || this.measureObserver || typeof win.ResizeObserver !== 'function') return;
-    this.measureObserver = new win.ResizeObserver(() => {
-      if (this.disposed || this.viewportInitialized || this.manuallyResized
-          || this.opts.isEnabled?.() === false) {
-        this.disconnectMeasureObserver();
-        return;
+    if (!content || !svg || !win) return;
+    const fullscreen = this.doc.fullscreenElement === this.root;
+    if (!fullscreen) {
+      this.applyFrameWidth();
+      if (!this.manuallyResized) {
+        const width = this.measureWidth();
+        if (width > 0) {
+          const height = this.autoHeightFor(width, content, win);
+          if (Math.abs(height - this.viewportHeight) >= 0.5) this.setViewportHeight(height);
+        }
       }
-      const width = this.preview.getBoundingClientRect().width
-        || this.root.getBoundingClientRect().width;
-      if (width <= 0) return;
-      this.initializeViewport();
-    });
-    this.measureObserver.observe(this.preview);
+    }
+    this.syncGeometry();
   }
 
-  private disconnectMeasureObserver(): void {
-    this.measureObserver?.disconnect();
-    this.measureObserver = null;
+  private onViewportResize = (): void => {
+    if (this.disposed || this.opts.isEnabled?.() === false) return;
+    if (!this.viewportInitialized) this.initializeViewport();
+    else this.refreshViewport();
+  };
+
+  private observeViewport(): void {
+    const win = this.doc.defaultView;
+    if (!win || this.viewportObserver || typeof win.ResizeObserver !== 'function') return;
+    this.viewportObserver = new win.ResizeObserver(this.onViewportResize);
+    this.viewportObserver.observe(this.preview);
+  }
+
+  private disconnectViewportObserver(): void {
+    this.viewportObserver?.disconnect();
+    this.viewportObserver = null;
+  }
+
+  private measureWidth(): number {
+    return this.preview.getBoundingClientRect().width
+      || this.viewportFrame.getBoundingClientRect().width
+      || this.root.getBoundingClientRect().width;
+  }
+
+  /** The frame takes the diagram's natural width (floored for the toolbar);
+   *  CSS caps it at the container, so wide diagrams still fill the line. */
+  private applyFrameWidth(): void {
+    if (this.naturalWidth <= 0) return;
+    this.viewportFrame.style.width = `${Math.max(this.naturalWidth, MIN_VIEWPORT_WIDTH)}px`;
+  }
+
+  /**
+   * Height at which the diagram, padded per {@link fitPadding}, exactly fills
+   * `width` — capped to the visible pane so a tall diagram is seen whole.
+   */
+  private autoHeightFor(width: number, content: ViewBox, win: Window): number {
+    const ratio = content.height / content.width;
+    const topFactor = FIT_PADDING_TOP_PX / FIT_PADDING_PX;
+    const pad = Math.min(FIT_PADDING_PX, FIT_PADDING_MAX_SHARE * width);
+    let height = (width - 2 * pad) * ratio + pad * (1 + topFactor);
+    if (FIT_PADDING_MAX_SHARE * height < pad) {
+      // A flat diagram: the padding is bound by the height, not the width —
+      // solve h = (w - 2·s·h)·r + s·h·(1 + t) for h, with s = the share cap
+      // and t = the top factor.
+      const s = FIT_PADDING_MAX_SHARE;
+      height = (width * ratio) / (1 + 2 * s * ratio - s * (1 + topFactor));
+    }
+    return clamp(height, MIN_VIEWPORT_HEIGHT, Math.min(this.availableHeight(win), MAX_VIEWPORT_HEIGHT));
+  }
+
+  private availableHeight(win: Window): number {
+    const scroller = this.preview.closest<HTMLElement>(SCROLL_CONTAINER_SELECTOR);
+    const visible = scroller && scroller.clientHeight > 0 ? scroller.clientHeight : win.innerHeight;
+    return Math.max(1, visible * AUTO_HEIGHT_VIEWPORT_SHARE);
   }
 
   private applyViewport(svg: SVGSVGElement, height: number): void {
-    this.disconnectMeasureObserver();
     this.preview.classList.add('drawio-interactive-viewport');
     svg.classList.add('drawio-interactive-svg');
     this.setViewportHeight(height);
     this.viewportInitialized = true;
+    this.observeViewport();
+    this.syncGeometry();
   }
 
   private setViewportHeight(height: number): void {
     this.viewportHeight = height;
     this.preview.style.height = `${height}px`;
-    this.resizeHandle.style.top = `${Math.max(0, height - 5)}px`;
+  }
+
+  /**
+   * Re-derive the base box from the viewport's current pixel size, keeping
+   * the user's zoom level and centre when zoomed (a fresh bind, or 1x, snaps
+   * to the new Fit). Also the moment the padded/aspect-fitted viewBox is
+   * first written to the SVG, so the inactive preview already shows what
+   * activation will — the first click never changes the picture.
+   */
+  private syncGeometry(): void {
+    const svg = this.svg;
+    const content = this.contentBox;
+    if (!svg || !content) return;
+    const prevBase = this.baseBox;
+    const prevCurrent = this.currentBox;
+    const base = this.computeBaseBox(svg, content);
+    this.baseBox = base;
+    const prevScale = prevBase && prevCurrent ? prevBase.width / prevCurrent.width : 1;
+    if (prevBase && prevCurrent && prevScale > 1 + SCALE_EPSILON) {
+      const width = base.width / prevScale;
+      const height = base.height / prevScale;
+      const centerX = prevCurrent.x + prevCurrent.width / 2;
+      const centerY = prevCurrent.y + prevCurrent.height / 2;
+      this.currentBox = {
+        x: clamp(centerX - width / 2, base.x, base.x + base.width - width),
+        y: clamp(centerY - height / 2, base.y, base.y + base.height - height),
+        width,
+        height,
+      };
+    } else {
+      this.currentBox = { ...base };
+    }
+    this.updateControls();
+    this.scheduleViewBoxWrite();
+  }
+
+  /**
+   * The Fit box: the content padded by {@link fitPadding} of screen space and
+   * expanded to the viewport's aspect ratio — centred horizontally, and
+   * vertically below the toolbar band with any surplus split evenly. While the
+   * viewport has no layout (detached/hidden) the content box itself is used;
+   * the observer re-derives the real one at the first layout.
+   */
+  private computeBaseBox(svg: SVGSVGElement, content: ViewBox): ViewBox {
+    const rect = svg.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return { ...content };
+    const { side, top } = fitPadding(rect.width, rect.height);
+    const scale = Math.min(
+      (rect.width - 2 * side) / content.width,
+      (rect.height - top - side) / content.height,
+    );
+    if (!(scale > 0)) return { ...content };
+    const width = rect.width / scale;
+    const height = rect.height / scale;
+    const surplusY = height - content.height - (top + side) / scale;
+    return {
+      x: content.x - (width - content.width) / 2,
+      y: content.y - top / scale - surplusY / 2,
+      width,
+      height,
+    };
   }
 
   private zoomBy(factor: number, clientX?: number, clientY?: number): void {
@@ -549,11 +750,11 @@ export class InteractiveViewerController extends MarkdownRenderChild {
   }
 
   /**
-   * The client rectangle the viewBox content actually occupies. With the
-   * default `preserveAspectRatio` ("xMidYMid meet") the content is scaled
-   * uniformly and centered, leaving letterbox margins whenever the element's
-   * aspect differs from the viewBox's — mapping the cursor over the full
-   * client rect would drift the zoom anchor on every wheel step.
+   * The client rectangle the viewBox content actually occupies. The base box
+   * is fitted to the viewport's aspect, so normally this is the whole client
+   * rect — but between a layout change and the observer's re-fit the default
+   * `preserveAspectRatio` ("xMidYMid meet") letterboxes the content, and an
+   * anchor computed over the raw rect would drift the zoom under the cursor.
    */
   private contentRect(svg: SVGSVGElement, box: ViewBox): ContentRect | null {
     const rect = svg.getBoundingClientRect();
@@ -570,7 +771,10 @@ export class InteractiveViewerController extends MarkdownRenderChild {
   }
 
   private fit(): void {
-    if (!this.baseBox) return;
+    const svg = this.svg;
+    const content = this.contentBox;
+    if (!svg || !content) return;
+    this.baseBox = this.computeBaseBox(svg, content);
     this.currentBox = { ...this.baseBox };
     this.updateControls();
     this.scheduleViewBoxWrite();
@@ -591,11 +795,16 @@ export class InteractiveViewerController extends MarkdownRenderChild {
   private scheduleViewBoxWrite(): void {
     const win = this.doc.defaultView;
     if (!win || this.frame !== null) return;
+    // A re-fit that lands on the box already shown (same layout, a detached
+    // preview) needs no frame at all.
+    if (this.svg && this.currentBox
+        && this.svg.getAttribute('viewBox') === formatViewBox(this.currentBox)) {
+      return;
+    }
     this.frame = win.requestAnimationFrame(() => {
       this.frame = null;
       if (this.svg && this.currentBox) {
-        const { x, y, width, height } = this.currentBox;
-        this.svg.setAttribute('viewBox', `${x} ${y} ${width} ${height}`);
+        this.svg.setAttribute('viewBox', formatViewBox(this.currentBox));
       }
     });
   }
@@ -604,6 +813,14 @@ export class InteractiveViewerController extends MarkdownRenderChild {
     if (this.frame === null) return;
     this.doc.defaultView?.cancelAnimationFrame(this.frame);
     this.frame = null;
+  }
+
+  /** Hand the SVG back as ViewerRenderer produced it: intrinsic viewBox, no viewport class. */
+  private releaseSvg(): void {
+    const svg = this.svg;
+    if (!svg) return;
+    svg.classList.remove('drawio-interactive-svg');
+    if (this.contentBox) svg.setAttribute('viewBox', formatViewBox(this.contentBox));
   }
 
   /**
@@ -617,6 +834,23 @@ export class InteractiveViewerController extends MarkdownRenderChild {
   }
 }
 
+/**
+ * Screen-space margins around the diagram at Fit for a viewport of the given
+ * pixel size: FIT_PADDING_PX on the sides and bottom, the toolbar band on top,
+ * both shrunk proportionally for viewports too small to afford them.
+ */
+function fitPadding(viewportWidth: number, viewportHeight: number): { side: number; top: number } {
+  const side = Math.min(
+    FIT_PADDING_PX,
+    FIT_PADDING_MAX_SHARE * Math.min(viewportWidth, viewportHeight),
+  );
+  return { side, top: side * (FIT_PADDING_TOP_PX / FIT_PADDING_PX) };
+}
+
+function formatViewBox(box: ViewBox): string {
+  return `${box.x} ${box.y} ${box.width} ${box.height}`;
+}
+
 function parseViewBox(raw: string | null): ViewBox | null {
   if (!raw) return null;
   const values = raw.trim().split(/[\s,]+/).map(Number);
@@ -626,6 +860,13 @@ function parseViewBox(raw: string | null): ViewBox | null {
   const width = values[2]!;
   const height = values[3]!;
   return width > 0 && height > 0 ? { x, y, width, height } : null;
+}
+
+/** ViewerRenderer sizes the SVG with an explicit `width` attribute equal to the
+ *  diagram bounds; the viewBox width is the same number and the fallback. */
+function naturalWidthOf(svg: SVGSVGElement, content: ViewBox): number {
+  const attr = parseFloat(svg.getAttribute('width') ?? '');
+  return Number.isFinite(attr) && attr > 0 ? attr : content.width;
 }
 
 function clamp(value: number, min: number, max: number): number {

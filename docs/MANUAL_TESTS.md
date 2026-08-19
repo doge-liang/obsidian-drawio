@@ -76,3 +76,30 @@ Reading-view only by design).
 - [ ] The standalone `.drawio.svg`/`.drawio.png` file tab still edits via the
       right-click **Edit drawio diagram** menu / command (file-tab hotspot is
       intentionally not added — Obsidian owns the native image view).
+
+## Interactive viewer viewport
+
+Set **Preview click action → Interactive viewer**. Needs a wide diagram (the
+demo `demo.drawio`), a small one (two boxes), and a tall one, each as an
+embed and as a code block.
+
+- [ ] Before clicking, every preview already shows the diagram with a clear
+      margin inside its box (no shape touching the edge); clicking activates
+      without the picture moving or resizing.
+- [ ] Active, the toolbar sits at the viewport's top-right and the resize
+      handle on its bottom edge — also for a small code-block diagram, whose
+      viewport is centred at its natural width rather than spanning the note.
+- [ ] Drag the pane divider narrower and wider: the viewport height follows
+      the new width (no blank bands above/below), and a zoomed view keeps its
+      zoom level. Toggling the sidebar behaves the same.
+- [ ] Drag the resize handle shorter than the diagram's aspect: the embed
+      keeps its width (it used to shrink horizontally too) and the diagram is
+      centred in the shorter box; after a reload the persisted height shows
+      the same picture.
+- [ ] A tall diagram gets a viewport no taller than ~90% of the pane, fully
+      visible without scrolling; **Fit** and the initial view are identical.
+- [ ] Flip pages on a multi-page embed: the box keeps its width and height,
+      the new page is fitted inside it.
+- [ ] **Full screen** fills the screen with the diagram re-fitted; exiting
+      restores the previous box. Edit a diagram elsewhere while its embed is
+      visible: the embed re-renders and re-fits to the new diagram.

@@ -32,7 +32,9 @@ describe('InteractiveViewerController walking skeleton', () => {
     controller.bindSvg(svg);
 
     expect(controller.isActive).toBe(false);
-    expect(preview.style.height).toBe('300px');
+    // 600px wide, 2:1 diagram, 24px side/bottom padding plus the 44px
+    // toolbar band on top: (600 - 48) / 2 + 24 + 44.
+    expect(preview.style.height).toBe('344px');
     const heightBeforeClick = preview.style.height;
     preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(controller.isActive).toBe(true);
@@ -286,7 +288,7 @@ describe('InteractiveViewerController walking skeleton', () => {
     else delete (document as unknown as { fullscreenElement?: Element | null }).fullscreenElement;
   });
 
-  it('creates a full-width viewport using the diagram aspect ratio', () => {
+  it('creates a viewport whose height pads the diagram aspect ratio at the measured width', () => {
     const { root, preview, svg, controller } = fixture();
     vi.spyOn(preview, 'getBoundingClientRect').mockReturnValue({
       left: 0, top: 0, width: 600, height: 100, right: 600, bottom: 100, x: 0, y: 0,
@@ -295,7 +297,7 @@ describe('InteractiveViewerController walking skeleton', () => {
     window.dispatchEvent(new Event('resize'));
     preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(preview.classList.contains('drawio-interactive-viewport')).toBe(true);
-    expect(preview.style.height).toBe('300px');
+    expect(preview.style.height).toBe('344px');
     expect(svg.classList.contains('drawio-interactive-svg')).toBe(true);
     expect(root.querySelector('.drawio-interactive-resize-handle')).not.toBeNull();
     controller.dispose();
@@ -313,7 +315,8 @@ describe('InteractiveViewerController walking skeleton', () => {
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 700 });
     window.dispatchEvent(new Event('resize'));
     preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(preview.style.height).toBe('700px');
+    // 90% of the window: the whole diagram stays visible with room around it.
+    expect(preview.style.height).toBe('630px');
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalHeight });
     controller.dispose();
   });
@@ -339,7 +342,7 @@ describe('InteractiveViewerController walking skeleton', () => {
     const handle = root.querySelector<HTMLElement>('.drawio-interactive-resize-handle')!;
     handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 300 }));
     document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientY: 450 }));
-    expect(preview.style.height).toBe('450px');
+    expect(preview.style.height).toBe('494px'); // 344 automatic + 150 dragged
     frames.shift()!(0);
     expect(svg.getAttribute('viewBox')).toBe('0 0 200 100');
     document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientY: 450 }));
@@ -442,29 +445,34 @@ describe('InteractiveViewerController walking skeleton', () => {
     controller.dispose();
   });
 
-  it('rebinds a replacement page SVG, resets zoom, and preserves viewport height', () => {
+  it('rebinds a replacement page SVG, resets zoom, and preserves the viewport footprint', () => {
     const { root, preview, svg, controller } = fixture();
     vi.spyOn(preview, 'getBoundingClientRect').mockReturnValue({
-      left: 0, top: 0, width: 200, height: 100, right: 200, bottom: 100, x: 0, y: 0,
+      left: 0, top: 0, width: 600, height: 100, right: 600, bottom: 100, x: 0, y: 0,
       toJSON: () => ({}),
     });
     preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     root.querySelector<HTMLButtonElement>('[aria-label="Zoom in"]')!.click();
+    const frame = root.querySelector<HTMLElement>('.drawio-interactive-frame')!;
+    const frameWidth = frame.style.width;
 
     const handle = root.querySelector<HTMLElement>('.drawio-interactive-resize-handle')!;
     handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, clientY: 100 }));
     document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientY: 420 }));
     document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientY: 420 }));
-    expect(preview.style.height).toBe('420px');
+    expect(preview.style.height).toBe('664px'); // 344 automatic + 320 dragged
 
     const replacement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     replacement.setAttribute('viewBox', '10 20 400 300');
+    replacement.setAttribute('width', '400');
     preview.empty();
     preview.appendChild(replacement);
     controller.bindSvg(replacement, { preserveViewportHeight: true });
 
     expect(controller.isActive).toBe(false);
-    expect(preview.style.height).toBe('420px');
+    expect(preview.style.height).toBe('664px');
+    // The new page's natural width must not reshape the insertion either.
+    expect(frame.style.width).toBe(frameWidth);
     expect(replacement.getAttribute('viewBox')).toBe('10 20 400 300');
     expect(replacement.classList.contains('drawio-interactive-svg')).toBe(true);
     expect(preview.querySelectorAll('svg')).toHaveLength(1);
@@ -626,7 +634,7 @@ describe('InteractiveViewerController walking skeleton', () => {
       toJSON: () => ({}),
     });
     preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(preview.style.height).toBe('300px');
+    expect(preview.style.height).toBe('344px');
     expect(preview.classList.contains('drawio-interactive-viewport')).toBe(true);
     expect(root.querySelector('.drawio-interactive-resize-handle')).not.toBeNull();
     controller.dispose();
@@ -640,7 +648,7 @@ describe('InteractiveViewerController walking skeleton', () => {
       toJSON: () => ({}),
     });
     controller.bindSvg(svg);
-    // 600 * 100 / 2000 = 30px proportional — clamped up to the 80px minimum.
+    // ~37px padded-proportional — clamped up to the 80px minimum.
     expect(preview.style.height).toBe('80px');
     controller.dispose();
   });
@@ -654,10 +662,17 @@ describe('InteractiveViewerController walking skeleton', () => {
     preview.appendChild(svg);
     const controller = new InteractiveViewerController(root, preview);
     controller.bindSvg(svg);
+    // The viewport frame takes the preview's place inside the wrapper and
+    // hosts the handle, so it sits on the viewport's own bottom edge.
+    const frame = root.querySelector<HTMLElement>('.drawio-interactive-frame')!;
+    expect(frame.parentElement).toBe(wrap);
+    expect(preview.parentElement).toBe(frame);
     const handle = root.querySelector<HTMLElement>('.drawio-interactive-resize-handle')!;
-    expect(handle.parentElement).toBe(wrap);
+    expect(handle.parentElement).toBe(frame);
     controller.dispose();
     expect(root.querySelector('.drawio-interactive-resize-handle')).toBeNull();
+    expect(root.querySelector('.drawio-interactive-frame')).toBeNull();
+    expect(preview.parentElement).toBe(wrap);
   });
 
   it('rebinds document-level listeners after the pane is adopted into another document', () => {
@@ -704,7 +719,7 @@ describe('InteractiveViewerController walking skeleton', () => {
 
     enabled = true;
     window.dispatchEvent(new Event('resize'));
-    expect(preview.style.height).toBe('300px');
+    expect(preview.style.height).toBe('344px');
     controller.dispose();
   });
 
@@ -783,15 +798,25 @@ describe('InteractiveViewerController walking skeleton', () => {
       expect(observed).toContain(preview);
       expect(preview.style.height).toBe('');
 
-      vi.spyOn(preview, 'getBoundingClientRect').mockReturnValue({
+      const rect = vi.spyOn(preview, 'getBoundingClientRect').mockReturnValue({
         left: 0, top: 0, width: 600, height: 100, right: 600, bottom: 100, x: 0, y: 0,
         toJSON: () => ({}),
       });
       callbacks[0]!();
-      expect(preview.style.height).toBe('300px');
+      expect(preview.style.height).toBe('344px');
       expect(preview.classList.contains('drawio-interactive-viewport')).toBe(true);
-      expect(disconnect).toHaveBeenCalled();
+
+      // The observer stays on: a pane resize re-derives the automatic height
+      // from the new width instead of leaving the old one letterboxed.
+      expect(disconnect).not.toHaveBeenCalled();
+      rect.mockReturnValue({
+        left: 0, top: 0, width: 500, height: 344, right: 500, bottom: 344, x: 0, y: 0,
+        toJSON: () => ({}),
+      });
+      callbacks[0]!();
+      expect(preview.style.height).toBe('294px'); // (500 - 48) / 2 + 24 + 44
       controller.dispose();
+      expect(disconnect).toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();
     }
@@ -821,6 +846,138 @@ describe('InteractiveViewerController walking skeleton', () => {
     expect(first.controller.isActive).toBe(false);
     first.controller.dispose();
     second.controller.dispose();
+  });
+
+  it('fits the diagram with screen-space padding, expanded to the viewport aspect', () => {
+    const { preview, svg, controller } = fixture();
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      frames.push(cb);
+      return frames.length;
+    });
+    vi.spyOn(preview, 'getBoundingClientRect').mockReturnValue({
+      left: 0, top: 0, width: 600, height: 344, right: 600, bottom: 344, x: 0, y: 0,
+      toJSON: () => ({}),
+    });
+    // The viewport the automatic height produces for a 2:1 diagram at 600px.
+    vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({
+      left: 0, top: 0, width: 600, height: 344, right: 600, bottom: 344, x: 0, y: 0,
+      toJSON: () => ({}),
+    });
+    window.dispatchEvent(new Event('resize'));
+    expect(preview.style.height).toBe('344px');
+    // Written before any click: the inactive preview already shows the fit.
+    expect(frames).toHaveLength(1);
+    frames.shift()!(0);
+    const [x, y, width, height] = svg.getAttribute('viewBox')!.split(' ').map(Number);
+    // 24px at the sides/bottom and 44px on top at the fit scale
+    // (600 - 48) / 200 = 2.76: the box is the viewport in user units, centred
+    // horizontally on the content and sitting below the toolbar band.
+    expect(width).toBeCloseTo(600 / 2.76, 3);
+    expect(height).toBeCloseTo(344 / 2.76, 3);
+    expect(x).toBeCloseTo(-(600 / 2.76 - 200) / 2, 3);
+    expect(y).toBeCloseTo(-44 / 2.76, 3);
+    expect(width! / height!).toBeCloseTo(600 / 344, 6);
+    controller.dispose();
+    // Disposal hands the SVG back with its intrinsic viewBox.
+    expect(svg.getAttribute('viewBox')).toBe('0 0 200 100');
+    raf.mockRestore();
+  });
+
+  it('gives the frame the diagram natural width with a floor for the toolbar', () => {
+    const root = document.body.createDiv({ cls: 'drawio-embed' });
+    const preview = root.createDiv({ cls: 'drawio-preview' });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '-4 -4 320 160');
+    svg.setAttribute('width', '320');
+    svg.setAttribute('height', '160');
+    preview.appendChild(svg);
+    const controller = new InteractiveViewerController(root, preview, { initialHeight: 150 });
+    controller.bindSvg(svg);
+    const frame = root.querySelector<HTMLElement>('.drawio-interactive-frame')!;
+    // Width follows the diagram, not the (persisted, shorter) height: an
+    // embed's inline-block must not collapse when its viewport is made short.
+    expect(frame.style.width).toBe('320px');
+    expect(preview.style.height).toBe('150px');
+
+    const small = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    small.setAttribute('viewBox', '0 0 120 60');
+    small.setAttribute('width', '120');
+    preview.empty();
+    preview.appendChild(small);
+    controller.bindSvg(small);
+    expect(frame.style.width).toBe('240px');
+    controller.dispose();
+  });
+
+  it('keeps the zoom level and re-fits the base box when the viewport changes size', () => {
+    const callbacks: Array<() => void> = [];
+    class FakeResizeObserver {
+      constructor(private cb: () => void) { callbacks.push(() => { this.cb(); }); }
+      observe(): void { /* not used */ }
+      disconnect(): void { /* not used */ }
+      unobserve(): void { /* not used */ }
+    }
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    try {
+      const { preview, svg, controller } = fixture();
+      const frames: FrameRequestCallback[] = [];
+      const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+        frames.push(cb);
+        return frames.length;
+      });
+      const rect = (width: number, height: number) => ({
+        left: 0, top: 0, width, height, right: width, bottom: height, x: 0, y: 0,
+        toJSON: () => ({}),
+      });
+      const previewRect = vi.spyOn(preview, 'getBoundingClientRect').mockReturnValue(rect(600, 344));
+      const svgRect = vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue(rect(600, 344));
+      callbacks[0]!();
+      frames.shift()!(0);
+      const fitWidth = Number(svg.getAttribute('viewBox')!.split(' ')[2]);
+      preview.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      preview.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true, cancelable: true, deltaY: -100, clientX: 300, clientY: 162,
+      }));
+      frames.shift()!(0);
+      expect(Number(svg.getAttribute('viewBox')!.split(' ')[2])).toBeCloseTo(fitWidth / 1.02, 6);
+
+      // The pane narrows: the height follows the width, and the view keeps
+      // its 1.02x zoom relative to the NEW fit instead of snapping back.
+      previewRect.mockReturnValue(rect(500, 294));
+      svgRect.mockReturnValue(rect(500, 294));
+      callbacks[0]!();
+      expect(preview.style.height).toBe('294px');
+      frames.shift()!(0);
+      const [, , width, height] = svg.getAttribute('viewBox')!.split(' ').map(Number);
+      const newFitWidth = 500 / ((500 - 48) / 200);
+      expect(width).toBeCloseTo(newFitWidth / 1.02, 3);
+      expect(width! / height!).toBeCloseTo(500 / 294, 6);
+      controller.dispose();
+      raf.mockRestore();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('caps the automatic height by the enclosing scroll container, not the window', () => {
+    const scroller = document.body.createDiv({ cls: 'markdown-preview-view' });
+    Object.defineProperty(scroller, 'clientHeight', { configurable: true, value: 500 });
+    const root = scroller.createDiv({ cls: 'drawio-codeblock' });
+    const preview = root.createDiv({ cls: 'drawio-preview' });
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 100 400');
+    preview.appendChild(svg);
+    vi.spyOn(preview, 'getBoundingClientRect').mockReturnValue({
+      left: 0, top: 0, width: 600, height: 100, right: 600, bottom: 100, x: 0, y: 0,
+      toJSON: () => ({}),
+    });
+    const controller = new InteractiveViewerController(root, preview);
+    controller.bindSvg(svg);
+    // 90% of the 500px pane, although the window is taller.
+    expect(preview.style.height).toBe('450px');
+    controller.dispose();
+    scroller.remove();
   });
 
   it('removes DOM and listeners when disposed', () => {

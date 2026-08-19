@@ -157,6 +157,27 @@ name; the manifest id inside is `drawio-editor`).
   test. Note `svg.getBBox()` is NOT a usable content bound here — it unions in a
   zero-sized structural `<g>` at the origin and reports the diagram as far wider
   and further left than it is.
+- **The interactive viewer owns its viewport WIDTH through an explicit frame;
+  don't go back to letting the SVG size it** (`src/preview/interactiveViewer.ts`,
+  `.drawio-interactive-frame`). The controller wraps the preview in a block
+  frame whose inline `width` is the diagram's natural width (the SVG's `width`
+  attribute, floored at `MIN_VIEWPORT_WIDTH`, capped by CSS `max-width: 100%`),
+  hosts the toolbar and resize handle in that frame, and sets only the
+  preview's *height*. The reason is the `![[embed]]` root: it is an
+  inline-block, and a `width:100%;height:100%` SVG inside a shrink-to-fit box
+  makes the box's width = SVG intrinsic ratio × the height we set. Before the
+  frame, a persisted/dragged height of 150px shrank a 700px embed to ~310px
+  wide, and any rule that re-derived the height from the width (which the
+  viewer now does on every ResizeObserver tick, so pane resizes re-fit)
+  would have oscillated or collapsed. Also note that `renderPreview`'s SVG
+  size is **not** the diagram's true size — GraphViewer fits the diagram down
+  to the container width at render time (detached renders get the true
+  size) — so "natural width" means "as rendered", and page flips keep the
+  frame's footprint (`preserveViewportHeight`) rather than re-measuring.
+  The fit itself (`computeBaseBox`) pads the content by `FIT_PADDING_PX` of
+  *screen* space and expands the box to the viewport's aspect ratio, so the
+  viewBox maps 1:1 onto the viewport (no letterbox at any zoom) and the
+  inactive preview already shows exactly what activation shows.
 - **`svgSanitizer.ts` is a custom scrub, NOT DOMPurify.** DOMPurify strips
   `foreignObject`, which erases drawio's `html=1` text labels. Do **not** swap back to
   DOMPurify. It still removes script/embedding elements, `on*` handlers,

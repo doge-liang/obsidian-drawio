@@ -31,8 +31,9 @@ export interface InteractiveMountHandle {
  * When the click action already resolves to the interactive viewer the
  * controller is constructed immediately (so a persisted height shapes the
  * first paint). In every other mode nothing is constructed — a controller
- * carries five document/window-level listeners plus `user-select: none`
- * styling, which previews that never use the viewer should not pay for.
+ * carries five document/window-level listeners, a ResizeObserver, a frame
+ * element wrapped around the preview, and `user-select: none` styling, which
+ * previews that never use the viewer should not pay for.
  * Instead a pair of root-scoped click/pointerdown listeners waits: if the
  * user switches the setting to Interactive viewer later, the first click or
  * drag-start on the preview constructs the controller, applies the note's
