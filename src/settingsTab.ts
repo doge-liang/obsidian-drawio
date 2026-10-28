@@ -95,6 +95,17 @@ export class DrawioSettingTab extends PluginSettingTab {
           .setValue(s.newDiagramFormat)
           .onChange((v) => { s.newDiagramFormat = v as NewDiagramFormat; save(); }));
 
+      new Setting(containerEl)
+        .setName('PNG export scale')
+        .setDesc('Resolution for saved .drawio.png files and PNG exports. Higher scales produce sharper, larger images.')
+        .addDropdown((d) => d
+          .addOption('1', '1×')
+          .addOption('2', '2× (default)')
+          .addOption('3', '3×')
+          .addOption('4', '4×')
+          .setValue(String(s.pngExportScale))
+          .onChange((v) => { s.pngExportScale = Number(v); save(); }));
+
       // Target folder, only relevant when the location is a fixed folder.
       if (s.newDiagramLocation === 'folder') {
         new Setting(containerEl)

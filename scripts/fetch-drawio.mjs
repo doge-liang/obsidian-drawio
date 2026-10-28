@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { bundleStencils } from './bundle-stencils.mjs';
 
 const DRAWIO_VERSION = 'v31.1.8';
 // SHA-256 of the pinned draw.war — MUST match DRAWIO_WAR_SHA256 in
@@ -126,6 +127,7 @@ async function main() {
     mkdirSync(join(process.cwd(), 'src', 'preview'), { recursive: true });
     copyFileSync(join(OUT_DIR, 'js', 'viewer.min.js'),
       join(process.cwd(), 'src', 'preview', 'viewer.min.txt'));
+    await bundleStencils(OUT_DIR, join(process.cwd(), 'src', 'preview', 'stencils.generated.txt'));
 
     await writeFile(join(OUT_DIR, 'DRAWIO_VERSION'), DRAWIO_VERSION + '\n');
     console.log(`drawio ${DRAWIO_VERSION} extracted to ${OUT_DIR}`);

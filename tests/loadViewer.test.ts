@@ -52,6 +52,24 @@ describe('ensureViewerLoaded', () => {
     expect(w().__viewerEvalCount).toBe(1);
   });
 
+  it('installs offline stencil loading when a previous plugin version already loaded the viewer', () => {
+    const registry = {
+      dynamicLoading: true, allowEval: true,
+      getStencil: () => null, parseStencilSet: () => {}, loadStencil: () => null,
+    };
+    w().GraphViewer = { createViewerForElement: () => {} };
+    w().mxStencilRegistry = registry;
+    document.head.dataset.drawioViewerLoaded = '1';
+    ensureViewerLoaded(document);
+    const getStencil = registry.getStencil;
+    ensureViewerLoaded(document);
+    expect(registry.dynamicLoading).toBe(false);
+    expect(registry.allowEval).toBe(false);
+    expect(registry.getStencil).toBe(getStencil);
+    expect(w().__viewerEvalCount).toBeUndefined();
+    delete w().mxStencilRegistry;
+  });
+
   it('creates no <script> element (the review-scanner constraint)', () => {
     const before = document.getElementsByTagName('script').length;
     ensureViewerLoaded(document);

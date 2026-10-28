@@ -11,8 +11,15 @@ export function buildLoadMessage(xml: string, opts: { dark: boolean }): string {
   return JSON.stringify({ action: 'load', xml, autosave: 1, modified: 0, dark: opts.dark });
 }
 
-export function buildExportMessage(format: 'svg' | 'png' | 'xmlsvg' | 'xmlpng'): string {
-  return JSON.stringify({ action: 'export', format });
+export function buildExportMessage(format: 'svg' | 'png' | 'xmlsvg' | 'xmlpng', pngScale = 2): string {
+  const scale = Number.isFinite(pngScale) && pngScale >= 1 && pngScale <= 4 ? pngScale : 2;
+  return JSON.stringify({ action: 'export', format,
+    ...(format === 'png' || format === 'xmlpng' ? { scale } : {}),
+  });
+}
+
+export function buildSavedMessage(): string {
+  return JSON.stringify({ action: 'status', message: '', modified: false });
 }
 
 /**

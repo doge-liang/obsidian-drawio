@@ -8,8 +8,8 @@
 //
 // 1. VIEWER_SCRIPT_LOADER — the MathJax-from-CDN helper: builds a <script>,
 //    points its src at a CDN URL and appends it. A genuine external-code
-//    loader, dead in offline previews (we never render math), so it is
-//    deleted outright.
+//    loader, unused in offline previews (math uses Obsidian's bundled engine),
+//    so it is deleted outright.
 // 2. VIEWER_SVG_ICON_SCRIPT — addSvgIconHandlers embeds an inline popup
 //    script into SVGs *exported by EditorUi*, a path GraphViewer previews
 //    never reach. Its element creation is a ternary with a

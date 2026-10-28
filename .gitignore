@@ -5,6 +5,7 @@ webapp/
 .vscode/
 data.json
 src/preview/viewer.min.txt
+src/preview/stencils.generated.txt
 
 # Scratch lint configs used for local repro of review findings (see CLAUDE.md);
 # meant to be created and deleted within a session, never committed.

@@ -1,6 +1,7 @@
 import { ensureViewerLoaded, getGraphViewer } from './loadViewer';
 import { isValidDrawioXml, ensureMxfile } from '../model/xmlUtils';
 import { sanitizeSvgToNode } from './svgSanitizer';
+import { typesetPreviewMath } from './mathTypesetting';
 
 export interface RenderOptions {
   dark: boolean;
@@ -69,8 +70,11 @@ export function renderPreview(el: HTMLElement, xml: string, opts: RenderOptions)
   const win = el.ownerDocument.defaultView ?? window;
   const urlParams = (win as unknown as { urlParams?: Record<string, unknown> }).urlParams;
   const prevPage = urlParams?.page;
+  let mathEnabled = false;
   try {
-    viewer.createViewerForElement(mount);
+    viewer.createViewerForElement(mount, (instance) => {
+      mathEnabled = instance.graph?.mathEnabled === true;
+    });
   } finally {
     if (urlParams) urlParams.page = prevPage;
   }
@@ -88,6 +92,12 @@ export function renderPreview(el: HTMLElement, xml: string, opts: RenderOptions)
     el.empty(); // drop GraphViewer's container + its handlers/overlays
     if (clean) {
       el.appendChild(clean);
+      const output = el.querySelector('svg');
+      if (mathEnabled && output) {
+        void typesetPreviewMath(output).catch((err) => {
+          console.error('Drawio: failed to load mathematical typesetting', err);
+        });
+      }
     } else {
       el.createDiv({ cls: 'drawio-error', text: 'drawio render failed' });
     }

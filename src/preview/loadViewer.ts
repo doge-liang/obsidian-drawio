@@ -1,5 +1,6 @@
 // @ts-expect-error - imported as raw text via esbuild text loader
 import viewerSource from './viewer.min.txt';
+import { installOfflineStencils } from './offlineStencils';
 
 const SENTINEL = 'drawioViewerLoaded';
 
@@ -17,13 +18,20 @@ const SENTINEL = 'drawioViewerLoaded';
  * vendored blob's only external-script loader is stripped at build time).
  */
 export function ensureViewerLoaded(doc: Document = activeDocument): void {
-  if (doc.head.dataset[SENTINEL] === '1') return;
-  const win = (doc.defaultView ?? window) as unknown as Record<string, unknown>;
-  if (win.GraphViewer) { doc.head.dataset[SENTINEL] = '1'; return; }
+  const targetWindow = doc.defaultView ?? activeWindow;
+  const win = targetWindow as unknown as Record<string, unknown>;
+  if (win.GraphViewer) {
+    // Obsidian can reload the plugin while the previous viewer stays in the
+    // window. Apply the offline registry to that existing viewer as well.
+    installOfflineStencils(targetWindow);
+    doc.head.dataset[SENTINEL] = '1';
+    return;
+  }
   // Keep everything local/offline.
   win.mxLoadResources = false;
   win.mxLoadStylesheets = false;
   win.mxForceIncludes = false;
+  win.STENCIL_PATH = 'drawio-stencils';
   win.STYLE_PATH = win.STYLE_PATH ?? '.';
   win.RESOURCE_BASE = win.RESOURCE_BASE ?? '.';
   win.mxBasePath = win.mxBasePath ?? '.';
@@ -39,11 +47,12 @@ export function ensureViewerLoaded(doc: Document = activeDocument): void {
   // <script>-free equivalent of appending an inline script tag.
   const runInGlobalScope = win.eval as (code: string) => void;
   runInGlobalScope(viewerSource as string);
+  installOfflineStencils(targetWindow);
   doc.head.dataset[SENTINEL] = '1';
 }
 
 interface GraphViewerStatic {
-  createViewerForElement(el: HTMLElement): void;
+  createViewerForElement(el: HTMLElement, callback?: (viewer: { graph?: { mathEnabled?: boolean } }) => void): void;
 }
 
 export function getGraphViewer(win: Window = window): GraphViewerStatic | null {

@@ -11,6 +11,10 @@ redistribution. The workflow copies this file into the bundle's `webapp/`
 directory. The in-app one-click installer is *not* a redistribution (users
 download directly from jgraph's own release), so it is unaffected.
 
+The standard plugin also bundles compressed XML stencil libraries from the
+pinned webapp. The production build includes this license text in the `main.js`
+banner so it accompanies stencil data in store installs as well.
+
 If a drawio version bump ever changes the upstream license, refresh this
 copy from `https://raw.githubusercontent.com/jgraph/drawio/<tag>/LICENSE`
 and re-check that redistribution is still permitted.
