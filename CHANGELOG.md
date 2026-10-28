@@ -8,6 +8,29 @@ The release workflow publishes the tagged version's section below as the GitHub
 release notes, so a version's section must be complete before its tag is pushed
 (see the Release process section of CLAUDE.md).
 
+## 0.7.2 - 2026-10-28
+
+### Changed — action may be required
+
+- Saving `.drawio.png` files and exporting PNG images now uses 2× resolution by
+  default. If you need the previous image dimensions or smaller files, set
+  **PNG export scale** to **1×** before saving or exporting.
+
+### Added
+
+- **PNG export scale** lets you choose 1×, 2×, 3×, or 4× resolution for PNG saves
+  and exports.
+
+### Fixed
+
+- LaTeX formulas in HTML labels now render in code-block and embedded previews
+  when **Mathematical Typesetting** is enabled, including on compressed diagram pages.
+- Library stencil icons, including Office security shapes, now render correctly
+  in offline previews without requiring the offline editor to be installed.
+- Successful saves now clear the editor's unsaved indicator and prevent false
+  discard-change warnings. Failed saves keep the editor open, and overlapping
+  saves wait for the latest changes to reach disk before being marked saved.
+
 ## 0.7.1 - 2026-08-15
 
 ### Changed

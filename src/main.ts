@@ -156,6 +156,7 @@ export default class DrawioPlugin extends Plugin {
       resolveBaseUrl: () => this.resolveBaseUrl(),
       isDark: () => this.settings.followObsidianTheme && this.isDark(),
       showLibraries: () => this.settings.showLibraries,
+      pngExportScale: () => this.settings.pngExportScale,
       acquireServer: () => this.server!.acquire(),
       releaseServer: () => this.server!.release(),
     };

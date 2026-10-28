@@ -20,6 +20,8 @@ export interface DrawioSettings {
   /** Target folder for new diagrams when newDiagramLocation is 'folder'. */
   newDiagramFolder: string;
   newDiagramFormat: NewDiagramFormat;
+  /** Raster resolution used when saving and exporting PNG diagrams. */
+  pngExportScale: number;
   previewAlignment: PreviewAlignment;
   /** Desktop: open .drawio files as a static preview instead of the editor. */
   readonlyFileView: boolean;
@@ -45,6 +47,7 @@ export const DEFAULT_SETTINGS: DrawioSettings = {
   newDiagramLocation: 'root',
   newDiagramFolder: '',
   newDiagramFormat: 'drawio',
+  pngExportScale: 2,
   previewAlignment: 'center',
   readonlyFileView: false,
   previewClickAction: 'editor',

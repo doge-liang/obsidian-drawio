@@ -50,6 +50,7 @@ describe('DEFAULT_SETTINGS', () => {
         'newDiagramFolder',
         'newDiagramFormat',
         'newDiagramLocation',
+        'pngExportScale',
         'previewAlignment',
         'previewClickAction',
         'readonlyFileView',

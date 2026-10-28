@@ -1,5 +1,6 @@
 // @ts-expect-error - imported as raw text via esbuild text loader
 import viewerSource from './viewer.min.txt';
+import { installOfflineStencils } from './offlineStencils';
 
 const SENTINEL = 'drawioViewerLoaded';
 
@@ -24,6 +25,7 @@ export function ensureViewerLoaded(doc: Document = activeDocument): void {
   win.mxLoadResources = false;
   win.mxLoadStylesheets = false;
   win.mxForceIncludes = false;
+  win.STENCIL_PATH = 'drawio-stencils';
   win.STYLE_PATH = win.STYLE_PATH ?? '.';
   win.RESOURCE_BASE = win.RESOURCE_BASE ?? '.';
   win.mxBasePath = win.mxBasePath ?? '.';
@@ -39,11 +41,12 @@ export function ensureViewerLoaded(doc: Document = activeDocument): void {
   // <script>-free equivalent of appending an inline script tag.
   const runInGlobalScope = win.eval as (code: string) => void;
   runInGlobalScope(viewerSource as string);
+  installOfflineStencils(doc.defaultView ?? activeWindow);
   doc.head.dataset[SENTINEL] = '1';
 }
 
 interface GraphViewerStatic {
-  createViewerForElement(el: HTMLElement): void;
+  createViewerForElement(el: HTMLElement, callback?: (viewer: { graph?: { mathEnabled?: boolean } }) => void): void;
 }
 
 export function getGraphViewer(win: Window = window): GraphViewerStatic | null {

@@ -63,7 +63,7 @@ export async function exportDiagramXml(
             break;
           case 'load':
             // The diagram is in; ask for the plain image.
-            post(buildExportMessage(format));
+            post(buildExportMessage(format, deps.pngExportScale?.()));
             break;
           case 'export':
             resolve((ev as { data: string }).data);

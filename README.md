@@ -16,6 +16,7 @@ Embed, preview, and edit [draw.io](https://www.drawio.com/) (diagrams.net) diagr
 - **Three surfaces, one plugin** — inline `` ```drawio `` code blocks, standalone `.drawio` files (Excalidraw-style: the editor lives right in the file's tab), and `![[file.drawio]]` embeds. Code blocks and `.drawio` embeds render live SVG previews in both editing and reading views. On desktop, clicking a preview follows **Preview click action** (open the editor by default). Dual-format `.drawio.svg` / `.drawio.png` files display as ordinary images and stay editable here.
 - **Migrate from the old Diagrams plugin** — scan the vault for ordinary `.svg` files with embedded drawio data and rename them to `.drawio.svg` in one step (desktop).
 - **Offline previews, always** — previews are produced by drawio's own viewer bundled into the plugin: no iframe, no network, on desktop and mobile alike.
+- **Library icons and formulas in previews** — XML stencil libraries (including Office icons) are bundled for offline use, even without the offline editor installed. With **Mathematical Typesetting** enabled in draw.io, HTML labels containing `\(...\)`, `\[...\]`, or `$$...$$` LaTeX are rendered using Obsidian's built-in math engine.
 - **Offline editor, optionally** — the editor defaults to a bundled, fully offline drawio build served from a local server. Store installs don't include the bundle (~145 MB); install it with one click from the plugin settings, or switch the editor source to Online.
 - **Readable, git-friendly storage** — diagrams are saved as uncompressed, pretty-printed XML rather than a compressed blob, so diffs, sync, and version history stay meaningful.
 - **Multi-page aware** — multi-page diagrams get a compact page switcher (‹ 2 / 5 ›) under the preview, and `![[file.drawio#Page-2]]` opens the embed on the page named "Page-2".
@@ -88,6 +89,7 @@ Phones and tablets behave identically: previews everywhere, no editing. Tapping 
 | **Custom drawio URL** | Used when Editor source is "Custom URL" (e.g. `https://embed.diagrams.net/`). |
 | **New diagram location** | Where the command and ribbon button create diagrams: vault root (default), the current note's folder, or a fixed folder (created if missing). The folder context menu always creates in the clicked folder. |
 | **New diagram format** | `.drawio` (plain XML, default), `.drawio.svg`, or `.drawio.png` — the latter two are standard images with the diagram embedded, viewable anywhere and editable here. |
+| **PNG export scale** | Resolution for saved `.drawio.png` files and PNG exports: 1×, 2× (default), 3×, or 4×. Higher scales produce sharper, larger images. Choose 1× to keep the previous resolution. |
 | **Open diagram files read-only** | Desktop: show a static preview instead of the embedded editor when opening `.drawio` files — for workflows centred on drawio-desktop. Applies to newly opened tabs. |
 | **Preview click action** | Desktop: what clicking a preview does — **Open built-in editor** (default), **Open in system default app**, **Interactive viewer**, or **Do nothing**. Code blocks have no file, so opening the system default app falls back to the built-in editor. |
 | **Edit button action** | Desktop: shown only when **Preview click action** is **Interactive viewer**. What the viewer's **Edit** button does for file-backed diagrams — the built-in editor or the system default app. Code blocks always use the built-in editor. |
@@ -140,14 +142,14 @@ Still stuck? Open the developer console (**Ctrl/Cmd+Shift+I → Console**), repr
 ## Notes & limitations
 
 - **Editing is desktop-only** — it needs the iframe-based drawio editor and, in Offline mode, a local HTTP server. Mobile gets previews (see [Platform support](#platform-support)).
-- **Bundle size**: `main.js` is ~2.5 MB because drawio's viewer (~2.4 MB) is inlined for offline previews. This is expected.
+- **Bundle size**: `main.js` is ~11 MB, including draw.io's viewer and compressed XML stencil libraries for offline previews. Libraries are decompressed only when a preview needs them.
 - **Security**: rendered SVG previews are sanitized before insertion — script/embedding elements, inline event handlers, script-bearing URL schemes, external `<use>` references, SMIL injection, and dangerous CSS are removed, while drawio's `foreignObject` text labels are preserved. The bundled viewer runs without injecting any `<script>` element, and its one external-script loader (an unused MathJax-from-CDN helper) is stripped at build time, so previews fetch and execute no external code. In Offline mode the local server binds to `127.0.0.1` only and serves solely the bundled `webapp/` directory.
 
 ## Development
 
 ```bash
 npm install
-npm run fetch-drawio   # once per clone: fetch the drawio webapp + preview viewer
+npm run fetch-drawio   # once per clone: fetch drawio and bundle the viewer + stencils
 npm run dev            # watch build
 npm test               # unit tests (vitest)
 npm run build          # type-check + production bundle

@@ -73,7 +73,7 @@ describe('exportDiagramXml (headless drawio export)', () => {
     const deps = makeDeps();
     const { promise, posts, dispatch } = await start('png', deps);
     dispatch({ event: 'load' });
-    expect(posts).toContainEqual(JSON.stringify({ action: 'export', format: 'png' }));
+    expect(posts).toContainEqual(JSON.stringify({ action: 'export', format: 'png', scale: 2 }));
     dispatch({ event: 'export', format: 'png', data: 'data:image/png;base64,AA==' });
     await expect(promise).resolves.toBe('data:image/png;base64,AA==');
   });

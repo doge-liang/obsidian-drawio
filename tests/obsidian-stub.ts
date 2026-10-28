@@ -66,6 +66,14 @@ export const Platform = {
 // element structure — the icon glyph itself is not under test.
 export function setIcon(_parent: HTMLElement, _iconId: string): void {}
 
+export async function loadMathJax(): Promise<void> {}
+export async function finishRenderMath(): Promise<void> {}
+export function renderMath(source: string, _display: boolean): HTMLElement {
+  const el = document.createElement('mjx-container');
+  el.textContent = source;
+  return el;
+}
+
 export class PluginSettingTab {
   containerEl: HTMLElement;
   constructor(_app: unknown, _plugin: unknown) {

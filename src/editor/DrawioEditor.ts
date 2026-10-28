@@ -1,7 +1,7 @@
 import { Notice } from 'obsidian';
 import { DrawioSource, isExportingSource } from '../model/DrawioSource';
 import {
-  buildLoadMessage, buildConfigureMessage, buildExportMessage, parseDrawioEvent,
+  buildLoadMessage, buildConfigureMessage, buildExportMessage, buildSavedMessage, parseDrawioEvent,
 } from './embedMessages';
 import { buildEmbedQuery } from '../constants';
 
@@ -10,6 +10,7 @@ export interface DrawioEditorDeps {
   resolveBaseUrl(): Promise<string>;
   isDark(): boolean;
   showLibraries(): boolean;
+  pngExportScale?(): number;
   /** Pin/unpin the local server so it isn't idle-stopped while editing. */
   acquireServer(): void;
   releaseServer(): void;
@@ -53,6 +54,9 @@ export class DrawioEditor {
   private exitAfterExport = false;
   private lastXml: string | null = null;
   private exportTimer: number | null = null;
+  private exportWriting = false;
+  private saveRevision = 0;
+  private writeQueue: Promise<void> = Promise.resolve();
 
   constructor(
     private container: HTMLElement,
@@ -129,6 +133,7 @@ export class DrawioEditor {
       }
       case 'save':
       case 'autosave': {
+        const revision = ++this.saveRevision;
         if (isExportingSource(this.source)) {
           // The event's xml alone can't be persisted as-is (the file body is
           // an image); ask the editor for a fresh export and save on its
@@ -138,32 +143,49 @@ export class DrawioEditor {
           this.requestExport();
           break;
         }
-        try {
-          await this.source.write((ev as { xml: string }).xml);
-        } catch (err) {
-          new Notice('Drawio: failed to save diagram');
-          console.error(err);
-        }
-        if (ev.event === 'save' && (ev as { exit?: boolean }).exit) this.options.onExit?.();
+        this.writeQueue = this.writeQueue.then(async () => {
+          try {
+            await this.source.write(ev.xml);
+            if (!this.destroyed && revision === this.saveRevision) {
+              this.post(buildSavedMessage());
+              if (ev.event === 'save' && ev.exit) this.options.onExit?.();
+            }
+          } catch (err) {
+            new Notice('Drawio: failed to save diagram');
+            console.error(err);
+          }
+        });
+        await this.writeQueue;
         break;
       }
       case 'export': {
-        if (!isExportingSource(this.source)) break;
+        if (!isExportingSource(this.source) || !this.exportPending || this.exportWriting) break;
         this.clearExportTimer();
-        this.exportPending = false;
-        const again = this.exportQueued;
-        this.exportQueued = false;
+        this.exportWriting = true;
+        let saved = false;
         try {
-          await this.source.writeExport((ev as { data: string }).data);
+          const source = this.source;
+          await this.persist(() => source.writeExport(ev.data));
+          saved = true;
         } catch (err) {
           new Notice('Drawio: failed to save diagram');
           console.error(err);
         }
-        if (again) {
+        this.exportWriting = false;
+        this.exportPending = false;
+        if (this.destroyed) break;
+        // Include saves arriving while the vault write was awaiting completion.
+        if (this.exportQueued) {
+          this.exportQueued = false;
           this.requestExport();
-        } else if (this.exitAfterExport) {
+        } else {
+          const exit = this.exitAfterExport;
           this.exitAfterExport = false;
-          this.options.onExit?.();
+          if (saved) {
+            this.lastXml = null;
+            this.post(buildSavedMessage());
+            if (exit) this.options.onExit?.();
+          }
         }
         break;
       }
@@ -180,7 +202,14 @@ export class DrawioEditor {
     this.clearExportTimer();
     this.exportTimer = window.setTimeout(() => { void this.onExportTimeout(); },
       this.options.exportTimeoutMs ?? DEFAULT_EXPORT_TIMEOUT_MS);
-    this.post(buildExportMessage(this.source.exportFormat()));
+    this.post(buildExportMessage(this.source.exportFormat(), this.deps.pngExportScale?.()));
+  }
+
+  /** Also orders teardown fallbacks after an image write already in flight. */
+  private persist(write: () => Promise<void>): Promise<void> {
+    const pending = this.writeQueue.then(write);
+    this.writeQueue = pending.catch(() => {});
+    return pending;
   }
 
   private clearExportTimer(): void {
@@ -193,19 +222,34 @@ export class DrawioEditor {
   private async onExportTimeout(): Promise<void> {
     if (this.destroyed || !this.exportPending) return;
     this.exportTimer = null;
-    this.exportPending = false;
     this.exportQueued = false;
+    this.exportWriting = true;
+    const revision = this.saveRevision;
     const exit = this.exitAfterExport;
     this.exitAfterExport = false;
+    let saved = false;
     try {
-      if (this.lastXml !== null) await this.source.write(this.lastXml);
+      const xml = this.lastXml;
+      if (xml !== null) await this.persist(() => this.source.write(xml));
+      saved = true;
       new Notice('Drawio: the editor did not return an export — the diagram data was saved, ' +
         'but the image may be outdated until the next save.');
     } catch (err) {
       new Notice('Drawio: failed to save diagram');
       console.error(err);
     }
-    if (exit) this.options.onExit?.();
+    this.exportWriting = false;
+    this.exportPending = false;
+    if (this.destroyed) return;
+    if (this.exportQueued) {
+      this.exportQueued = false;
+      this.exitAfterExport = this.exitAfterExport || exit;
+      this.requestExport();
+    } else if (saved && revision === this.saveRevision) {
+      this.lastXml = null;
+      this.post(buildSavedMessage());
+      if (exit) this.options.onExit?.();
+    }
   }
 
   private post(message: string): void {
@@ -247,7 +291,8 @@ export class DrawioEditor {
     // persist the last known XML now. The vault write survives the teardown;
     // only the image part stays stale until the next editor save.
     if ((this.exportPending || this.exportQueued) && this.lastXml !== null) {
-      this.source.write(this.lastXml).catch((err) => {
+      const xml = this.lastXml;
+      this.persist(() => this.source.write(xml)).catch((err) => {
         new Notice('Drawio: failed to save diagram');
         console.error(err);
       });
