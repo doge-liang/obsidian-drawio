@@ -16,12 +16,14 @@ interface StencilRegistry {
 }
 
 let bundle: StencilBundle | undefined;
+const installed = new WeakSet<StencilRegistry>();
 
 /** Install a per-window lazy registry backed exclusively by bundled data.
  * No vault paths, local server, editor install or network access are needed. */
 export function installOfflineStencils(win: Window): void {
   const registry = (win as unknown as { mxStencilRegistry?: StencilRegistry }).mxStencilRegistry;
-  if (!registry) return;
+  if (!registry || installed.has(registry)) return;
+  installed.add(registry);
   registry.dynamicLoading = false;
   registry.allowEval = false;
   const original = registry.getStencil.bind(registry);

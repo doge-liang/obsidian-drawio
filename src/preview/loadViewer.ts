@@ -18,9 +18,15 @@ const SENTINEL = 'drawioViewerLoaded';
  * vendored blob's only external-script loader is stripped at build time).
  */
 export function ensureViewerLoaded(doc: Document = activeDocument): void {
-  if (doc.head.dataset[SENTINEL] === '1') return;
-  const win = (doc.defaultView ?? window) as unknown as Record<string, unknown>;
-  if (win.GraphViewer) { doc.head.dataset[SENTINEL] = '1'; return; }
+  const targetWindow = doc.defaultView ?? activeWindow;
+  const win = targetWindow as unknown as Record<string, unknown>;
+  if (win.GraphViewer) {
+    // Obsidian can reload the plugin while the previous viewer stays in the
+    // window. Apply the offline registry to that existing viewer as well.
+    installOfflineStencils(targetWindow);
+    doc.head.dataset[SENTINEL] = '1';
+    return;
+  }
   // Keep everything local/offline.
   win.mxLoadResources = false;
   win.mxLoadStylesheets = false;
@@ -41,7 +47,7 @@ export function ensureViewerLoaded(doc: Document = activeDocument): void {
   // <script>-free equivalent of appending an inline script tag.
   const runInGlobalScope = win.eval as (code: string) => void;
   runInGlobalScope(viewerSource as string);
-  installOfflineStencils(doc.defaultView ?? activeWindow);
+  installOfflineStencils(targetWindow);
   doc.head.dataset[SENTINEL] = '1';
 }
 
