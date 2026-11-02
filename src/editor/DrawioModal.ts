@@ -1,4 +1,4 @@
-import { App, Modal, Notice } from 'obsidian';
+import { App, MarkdownView, Modal, Notice, Scope } from 'obsidian';
 import { DrawioSource } from '../model/DrawioSource';
 import { DrawioEditor, DrawioEditorDeps } from './DrawioEditor';
 import { OfflineEditorNotInstalledError } from '../model/errors';
@@ -9,9 +9,16 @@ import { OfflineEditorNotInstalledError } from '../model/errors';
  */
 export class DrawioModal extends Modal {
   private editor: DrawioEditor | null = null;
+  private returnView: MarkdownView | null;
 
   constructor(app: App, private source: DrawioSource, private deps: DrawioEditorDeps) {
     super(app);
+    this.returnView = app.workspace.getActiveViewOfType(MarkdownView);
+    this.scope = new Scope(this.scope);
+    this.scope.register([], 'Escape', () => {
+      if (!this.editor?.requestClose()) this.close();
+      return false;
+    });
   }
 
   async onOpen() {
@@ -20,6 +27,7 @@ export class DrawioModal extends Modal {
     try {
       this.editor = new DrawioEditor(this.contentEl, this.source, this.deps, {
         onExit: () => this.close(),
+        closeOnEscape: true,
       });
       await this.editor.mount();
     } catch (err) {
@@ -39,5 +47,8 @@ export class DrawioModal extends Modal {
     this.editor?.destroy();
     this.editor = null;
     this.contentEl.empty();
+    if (this.returnView && this.app.workspace.getActiveViewOfType(MarkdownView) === this.returnView) {
+      this.returnView.editor.focus();
+    }
   }
 }

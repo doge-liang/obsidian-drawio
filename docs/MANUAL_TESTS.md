@@ -11,9 +11,24 @@ Run in a desktop test vault after `npm run build` and copying the plugin (or sym
 - [ ] Two drawio blocks in one note edit independently (editing one doesn't corrupt the other).
 
 ## Files
-- [ ] "Create new drawio diagram" command creates and opens a `.drawio` file in the custom view.
+- [ ] **Create new diagram**, the ribbon button and folder menu create/open a standalone diagram without editing the active note.
 - [ ] Opening an existing `.drawio` file uses the custom view (preview + Edit), not plain text.
 - [ ] Edit → Save persists to the file; the preview updates.
+
+## Create and insert diagram (desktop)
+- [ ] **Create and insert diagram** is available in a Markdown editor, not Reading view, an image/diagram tab or an empty workspace.
+- [ ] For each **New diagram format** (`.drawio`, `.drawio.svg`, `.drawio.png`), the file is created and its embed appears in the source note before its editor opens. Close the editor without editing: the embed remains and resolves to the created file.
+- [ ] **New diagram location** respects vault root, the source note's folder and a fixed nested folder (created if missing).
+- [ ] At a cursor in text, and with a forward/backward selection, surrounding and selected text remain intact. The embed is inserted at the cursor/selection end on its own line. Undo in the note removes the insertion but keeps the file; redo restores the embed.
+- [ ] With Wikilinks on/off and different **New link format** settings, the generated embed resolves correctly, including paths with spaces.
+- [ ] If another Markdown pane becomes active while file creation is pending, only the initiating editor is changed, at its captured cursor. If the initiating pane is reused for a different note, neither that note nor the new active note is edited; a notice gives the created file's path.
+- [ ] A failed file/folder creation leaves the note untouched; an editor-open failure after successful insertion does not remove the embed.
+
+## Modal save and return to note (desktop)
+- [ ] After creating/inserting a dual-format diagram, edit a shape label without clicking elsewhere and press **Esc**. The latest label is saved in both native XML and the exported image before the modal closes; focus returns to the still-active source note without changing its text or selection.
+- [ ] Repeat from an existing embed and a code-block editor; a standalone `.drawio` editor tab does not acquire the modal Escape shortcut.
+- [ ] With persistence deliberately failing in a test vault, **Esc** leaves the modal open with the unsaved diagram; restore writes and press **Esc** again to save and close.
+- [ ] Closing a modal does not steal focus if a different note became active. An editor that failed to load can still be dismissed with **Esc**.
 
 ## Embeds
 - [ ] `![[x.drawio]]` shows a preview in reading mode; clicking it opens the editor.

@@ -17,6 +17,8 @@ export interface DrawioEditorDeps {
 }
 
 export interface DrawioEditorOptions {
+  /** Modal-only: save and return to the note when Escape is pressed in drawio. */
+  closeOnEscape?: boolean;
   /** Called when drawio emits an `exit` event (e.g. user clicks the editor's close). */
   onExit?: () => void;
   /** How long to wait for drawio's export reply before falling back to an
@@ -57,6 +59,8 @@ export class DrawioEditor {
   private exportWriting = false;
   private saveRevision = 0;
   private writeQueue: Promise<void> = Promise.resolve();
+  private closeRequested = false;
+  private loaded = false;
 
   constructor(
     private container: HTMLElement,
@@ -73,7 +77,7 @@ export class DrawioEditor {
 
     this.origin = new URL(base).origin;
     const q = buildEmbedQuery({ dark: this.deps.isDark(), libraries: this.deps.showLibraries() });
-    const url = `${base}${base.includes('?') ? '&' : '?'}${q}`;
+    const url = `${base}${base.includes('?') ? '&' : '?'}${q}${this.options.closeOnEscape ? '&saveAndExit=1' : ''}`;
 
     this.deps.acquireServer();
     this.acquired = true;
@@ -109,6 +113,16 @@ export class DrawioEditor {
     this.post(buildLoadMessage(xml, { dark: this.deps.isDark() }));
   }
 
+  /** Commit an active label edit, then use drawio's native save-and-exit path. */
+  requestClose(): boolean {
+    if (this.destroyed || !this.loaded || !this.iframe) return false;
+    if (this.closeRequested) return true;
+    this.closeRequested = true;
+    this.post(JSON.stringify({ action: 'resetEditor' }));
+    this.post(JSON.stringify({ action: 'invokeAction', actionName: 'saveAndExit' }));
+    return true;
+  }
+
   private async handle(e: MessageEvent): Promise<void> {
     if (e.source !== this.iframe?.contentWindow) return;
     if (this.origin !== 'null' && e.origin !== this.origin) return;
@@ -117,7 +131,13 @@ export class DrawioEditor {
     switch (ev.event) {
       case 'configure':
         // Sent before init when configure=1. Disable compression → readable XML.
-        this.post(buildConfigureMessage());
+        this.post(buildConfigureMessage(this.options.closeOnEscape));
+        break;
+      case 'shortcut':
+        if (this.options.closeOnEscape && ev.command === 'drawio-close') this.requestClose();
+        break;
+      case 'load':
+        this.loaded = true;
         break;
       case 'init': {
         let xml: string;
@@ -153,6 +173,7 @@ export class DrawioEditor {
           } catch (err) {
             new Notice('Drawio: failed to save diagram');
             console.error(err);
+            this.closeRequested = false;
           }
         });
         await this.writeQueue;
@@ -170,6 +191,8 @@ export class DrawioEditor {
         } catch (err) {
           new Notice('Drawio: failed to save diagram');
           console.error(err);
+          this.exitAfterExport = false;
+          this.closeRequested = false;
         }
         this.exportWriting = false;
         this.exportPending = false;
@@ -237,6 +260,7 @@ export class DrawioEditor {
     } catch (err) {
       new Notice('Drawio: failed to save diagram');
       console.error(err);
+      this.closeRequested = false;
     }
     this.exportWriting = false;
     this.exportPending = false;

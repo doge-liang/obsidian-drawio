@@ -42,12 +42,26 @@ export class Plugin {
   constructor(_app: unknown, _manifest: unknown) {}
 }
 
+export class Scope {
+  keys: Array<{ modifiers: unknown; key: string; func: () => unknown }> = [];
+  constructor(_parent?: Scope) {}
+  register(modifiers: unknown, key: string, func: () => unknown) {
+    const binding = { modifiers, key, func };
+    this.keys.push(binding);
+    return binding;
+  }
+}
+
 export class Modal {
   app: unknown;
+  scope = new Scope();
   titleEl: HTMLElement = document.createElement('div');
   contentEl: HTMLElement = document.createElement('div');
   modalEl: HTMLElement = document.createElement('div');
-  constructor(app: unknown) { this.app = app; }
+  constructor(app: unknown) {
+    this.app = app;
+    this.scope.register([], 'Escape', () => this.close());
+  }
   open(): void { this.onOpen(); }
   close(): void { this.onClose(); }
   onOpen(): void {}
