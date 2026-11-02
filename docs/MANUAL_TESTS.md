@@ -63,7 +63,11 @@ Reading-view only by design).
 
 - [ ] Clicking anywhere on the embedded image opens the editor on the
       embedded diagram (not Obsidian's image lightbox).
-- [ ] Editing and saving updates both the embedded XML and the rendered image.
+- [ ] Editing and saving updates both the embedded XML and the rendered image without switching/reopening the note.
+- [ ] Save while the image is offscreen/unmounted, then bring it back: it displays the current image without another save. Reapplying an older resource URL must not restore a stale image.
+- [ ] Delete/recreate an attachment at the same path, and rename paths between saves: the embed uses the current file version. Same-name attachments in different folders do not refresh one another.
+- [ ] Drag a native image-resize handle in Live Preview, then release over the image: resizing works and the editor does not open. The next ordinary image click and keyboard activation still work, including after the pointer gesture ends outside Obsidian or the window loses focus. Native embed action controls also keep their own behavior.
+- [ ] Repeat relevant resize and image-refresh checks in Reading view and a popped-out note; ordinary non-drawio images remain unaffected.
 - [ ] With **Preview click action → Open in default app**, clicking opens the
       file in the OS default app instead; with **Do nothing**, the image is not
       clickable.

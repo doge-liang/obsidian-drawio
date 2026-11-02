@@ -47,6 +47,8 @@ export default class DrawioPlugin extends Plugin {
     // Click-to-edit for dual-format image embeds (self-gates to desktop +
     // Reading view internally, so it's safe to register unconditionally).
     registerDualFormatEmbeds(this);
+    const { registerDualFormatRefresh } = await import('./file/dualFormatRefresh');
+    registerDualFormatRefresh(this);
 
     // Preview alignment is a body-level class (see styles.css), so flipping
     // the setting realigns already-rendered previews — including ones Obsidian

@@ -2,6 +2,7 @@ import { MarkdownView, Platform, TFile, WorkspaceLeaf } from 'obsidian';
 import { DualFormatFileSource } from '../file/DualFormatFileSource';
 import { dualFormatOf } from '../model/dualFormat';
 import { DRAWIO_VIEW_TYPE } from '../constants';
+import { isNativeImageControl } from '../preview/nativeImageControls';
 import {
   openWithDefaultApp, resolveClickAction,
 } from '../preview/clickAction';
@@ -42,6 +43,7 @@ export function syncDualFormatEditAction(plugin: DrawioPlugin, leaf: WorkspaceLe
  *  when the event was consumed. */
 export function handleDualFormatEmbedClick(plugin: DrawioPlugin, event: Event): boolean {
   if (!Platform.isDesktopApp) return false;
+  if (isNativeImageControl(event)) return false;
   const target = event.target;
   if (!(target instanceof Element)) return false;
   const span = target.closest('.internal-embed');
@@ -77,12 +79,37 @@ function syncAll(plugin: DrawioPlugin): void {
 }
 
 export function registerDualFormatOpen(plugin: DrawioPlugin): void {
-  const onClick = (event: MouseEvent) => {
-    handleDualFormatEmbedClick(plugin, event);
+  const registerWindow = (doc: Document) => {
+    // A resize can move/rebuild the handle, making the release click target
+    // its containing image instead. Remember the gesture, not just click.target.
+    let resizing = false;
+    const onDown = (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      const handle = typeof target?.closest === 'function'
+        ? target.closest('.image-resize-corner') : null;
+      const path = handle?.closest('.internal-embed[src]')?.getAttribute('src')?.split('#')[0];
+      resizing = !!path && dualFormatOf(path) !== null;
+    };
+    plugin.registerDomEvent(doc, 'pointerdown', onDown, { capture: true });
+    plugin.registerDomEvent(doc, 'mousedown', onDown, { capture: true });
+    plugin.registerDomEvent(doc, 'pointercancel', () => { resizing = false; }, { capture: true });
+    if (doc.defaultView) {
+      plugin.registerDomEvent(doc.defaultView, 'blur', () => { resizing = false; });
+    }
+    plugin.registerDomEvent(doc, 'click', (event: MouseEvent) => {
+      if (resizing && event.detail > 0) {
+        resizing = false;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
+      resizing = false;
+      handleDualFormatEmbedClick(plugin, event);
+    }, { capture: true });
   };
-  plugin.registerDomEvent(document, 'click', onClick, { capture: true });
+  registerWindow(document);
   plugin.registerEvent(plugin.app.workspace.on('window-open', (_win, popout) => {
-    plugin.registerDomEvent(popout.document, 'click', onClick, { capture: true });
+    registerWindow(popout.document);
   }));
   plugin.registerEvent(plugin.app.workspace.on('file-open', () => { syncAll(plugin); }));
   plugin.registerEvent(plugin.app.workspace.on('layout-change', () => { syncAll(plugin); }));

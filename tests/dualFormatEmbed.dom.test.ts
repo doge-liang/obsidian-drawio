@@ -93,6 +93,21 @@ describe('dual-format image embeds — click-to-edit', () => {
     expect(openEditor).not.toHaveBeenCalled();
   });
 
+  it('does not open the editor when clicking native image controls', () => {
+    Platform.isDesktopApp = true;
+    const { plugin, run, openEditor } = fakePlugin('editor');
+    registerDualFormatEmbeds(plugin);
+    const { span } = makeEmbed('diagram.drawio.svg');
+    run(span.parentElement as HTMLElement);
+    for (const cls of ['image-resize-corner', 'embed-action']) {
+      const control = document.createElement('div');
+      control.className = cls;
+      span.appendChild(control);
+      control.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }
+    expect(openEditor).not.toHaveBeenCalled();
+  });
+
   it('does nothing on click under "none"', () => {
     Platform.isDesktopApp = true;
     const { plugin, run, openEditor, openWithDefaultApp } = fakePlugin('none');
