@@ -8,7 +8,7 @@ export const ONLINE_DRAWIO_URL = 'https://embed.diagrams.net/';
 /** Pinned drawio version — MUST match scripts/fetch-drawio.mjs (guarded by
  * tests/drawioVersionSync.test.ts) so the runtime-installed webapp matches the
  * bundled viewer.min.txt. */
-export const DRAWIO_VERSION = 'v31.1.8';
+export const DRAWIO_VERSION = 'v32.6.9';
 
 /** The pinned drawio webapp archive (a ZIP), downloaded by the settings-tab
  * one-click installer. */
@@ -26,7 +26,7 @@ export const DRAWIO_WAR_URL =
  * and only after verifying the new archive — a mismatch is meant to fail the
  * build and the install loudly. */
 export const DRAWIO_WAR_SHA256 =
-  '46389bd60810f9775cd463c9eff4f4f8335f10926d613b0606ad4e978f46d49b';
+  '31afc82b7920c409d0591f6126ccb6c377d7800e7f11ab324f88bdf1e4249ce7';
 
 /** Default empty mxfile diagram. */
 export const EMPTY_DIAGRAM =
