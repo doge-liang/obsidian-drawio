@@ -1,4 +1,5 @@
 import { Notice, TFile, TFolder } from 'obsidian';
+import type { Editor, EditorPosition, MarkdownFileInfo } from 'obsidian';
 import type DrawioPlugin from '../main';
 import type { DrawioSettings } from '../settings';
 import { EMPTY_DIAGRAM } from '../constants';
@@ -42,17 +43,35 @@ async function ensureFolderExists(plugin: DrawioPlugin, path: string): Promise<b
   return true;
 }
 
-/**
- * Create a new empty diagram and open it in a new tab. `folderOverride` (the
- * folder the user right-clicked) wins over the location setting.
- */
+/** Create a standalone diagram without changing the current note. */
 export async function createNewDiagram(plugin: DrawioPlugin, folderOverride?: TFolder): Promise<void> {
+  await createDiagram(plugin, folderOverride);
+}
+
+/** Capture the initiating editor and selection end before any asynchronous work. */
+export async function createAndInsertDiagram(
+  plugin: DrawioPlugin, editor: Editor, context: MarkdownFileInfo,
+): Promise<void> {
+  const file = context.file;
+  if (!file || file.extension !== 'md') return;
+  const position = { ...editor.getCursor('to') };
+  await createDiagram(plugin, undefined, { editor, file, position, context });
+}
+
+/** Shared creation/open path; folder-menu overrides retain their original behavior. */
+async function createDiagram(
+  plugin: DrawioPlugin,
+  folderOverride?: TFolder,
+  insertion?: { editor: Editor; file: TFile; position: EditorPosition; context: MarkdownFileInfo },
+): Promise<void> {
   try {
     let folder: string;
     if (folderOverride) {
       folder = normalizeFolderPath(folderOverride.path);
     } else {
-      const parent = plugin.app.workspace.getActiveFile()?.parent?.path ?? null;
+      const parent = insertion
+        ? insertion.file.parent?.path ?? null
+        : plugin.app.workspace.getActiveFile()?.parent?.path ?? null;
       folder = resolveNewDiagramFolder(plugin.settings, parent);
       if (!(await ensureFolderExists(plugin, folder))) return;
     }
@@ -68,6 +87,17 @@ export async function createNewDiagram(plugin: DrawioPlugin, folderOverride?: TF
     } else {
       const body = format === 'svg' ? buildInitialSvg(EMPTY_DIAGRAM) : EMPTY_DIAGRAM;
       file = await plugin.app.vault.create(path, body);
+    }
+    if (insertion) {
+      // A Markdown pane can be reused for another note while creation awaits.
+      if (insertion.context.file !== insertion.file
+        || (insertion.context.editor && insertion.context.editor !== insertion.editor)) {
+        new Notice(`Drawio: "${file.path}" was created, but the source note is no longer open — the embed was not inserted.`);
+        return;
+      }
+      const link = plugin.app.fileManager.generateMarkdownLink(file, insertion.file.path);
+      const embed = link.startsWith('!') ? link : `!${link}`;
+      insertion.editor.replaceRange(`\n${embed}\n`, insertion.position);
     }
     if (format === 'drawio') {
       // Our registered file view carries the editor inline.

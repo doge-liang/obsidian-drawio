@@ -37,10 +37,15 @@ The editor needs one of: the offline editor installed (one click in settings, ~5
 | --- | --- | --- |
 | **Code block** | Add a `` ```drawio `` block in any note (start empty, or paste drawio XML) | Click the preview (see **Preview click action**; default: full-screen editor) |
 | **`.drawio` file** | Ribbon button / **Create new diagram** command / folder context menu | Editor embedded directly in the file's tab |
-| **Embed** | `![[your-diagram.drawio]]` in any note | Click the preview (see **Preview click action**; default: quick-edit modal) |
+| **Embed** | **Create and insert diagram** in a Markdown editor, or `![[your-diagram.drawio]]` in any note | Click the preview (see **Preview click action**; default: quick-edit modal) |
 | **`.drawio.svg` / `.drawio.png` file** | Same entry points, after setting **New diagram format** | Click the embed, the **Edit** button on the image tab, or right-click → **Edit drawio diagram** |
 
 Code blocks and `.drawio` embeds render as SVG previews in both editing and reading views. Dual-format files display as native images. Every edit autosaves back to its source — the code block's XML or the diagram file. File-backed embeds re-render automatically when the underlying file changes.
+
+
+**Creating directly in a note (desktop):** run **Create and insert diagram** from a Markdown editor. It uses **New diagram location** and **New diagram format**, inserts an embed at the cursor (or after the selection, without replacing it), then opens the diagram editor. The link follows Obsidian's link settings and stays in the note even if you close the diagram editor without editing. Undo in the note removes the insertion; the diagram file is kept. **Create new diagram**, the ribbon button and the folder menu still create standalone files without inserting anything into a note.
+
+**Returning to the note:** in a diagram editor modal, press **Esc** to commit any text being edited, save the diagram, and close after the save completes. If saving fails, the editor stays open so you can retry. Closing a modal returns focus to the originating note only if that note is still active. **Esc** does not close standalone `.drawio` editor tabs.
 
 **Clicking a preview (desktop):** **Settings → Drawio → Preview click action** chooses what a click does:
 

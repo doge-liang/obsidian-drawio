@@ -4,6 +4,7 @@ export type DrawioEvent =
   | { event: 'save'; xml: string; exit?: boolean }
   | { event: 'autosave'; xml: string }
   | { event: 'exit'; modified?: boolean }
+  | { event: 'shortcut'; command: string }
   | { event: 'export'; data: string; xml?: string; format?: string }
   | { event: 'configure' };
 
@@ -26,8 +27,11 @@ export function buildSavedMessage(): string {
  * Response to the editor's `configure` event. We disable XML compression so saved
  * diagrams are human-readable mxGraphModel XML (not a base64 blob).
  */
-export function buildConfigureMessage(): string {
-  return JSON.stringify({ action: 'configure', config: { compressXml: false } });
+export function buildConfigureMessage(closeOnEscape = false): string {
+  return JSON.stringify({ action: 'configure', config: {
+    compressXml: false,
+    ...(closeOnEscape ? { passThroughKeys: [{ key: 'Escape', command: 'drawio-close' }] } : {}),
+  } });
 }
 
 export function parseDrawioEvent(raw: unknown): DrawioEvent | null {

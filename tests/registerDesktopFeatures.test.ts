@@ -6,7 +6,9 @@ vi.mock('obsidian', async (importOriginal) => {
 });
 
 import { FileSystemAdapter, Notice, TFile } from 'obsidian';
+import type { Editor, MarkdownFileInfo } from 'obsidian';
 import { registerDesktopFeatures } from '../src/desktop/registerDesktopFeatures';
+import * as creation from '../src/file/createDiagram';
 import { DRAWIO_VERSION } from '../src/constants';
 import type DrawioPlugin from '../src/main';
 
@@ -69,6 +71,7 @@ interface RegisteredCommand {
   id: string;
   name: string;
   checkCallback?: (checking: boolean) => boolean;
+  editorCheckCallback?: (checking: boolean, editor: Editor, ctx: MarkdownFileInfo) => boolean | void;
 }
 
 function registeredCommand(raw: { addCommand: ReturnType<typeof vi.fn> }, id: string) {
@@ -107,6 +110,34 @@ describe('registerDesktopFeatures', () => {
     expect(raw.addCommand).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'create-drawio-file', name: 'Create new diagram' }),
     );
+  });
+
+  it('registers Create and insert diagram as an editor-only command', async () => {
+    const { plugin, raw } = fakePlugin();
+    await registerDesktopFeatures(plugin);
+    const command = registeredCommand(raw, 'create-and-insert-drawio-file');
+    expect(command.name).toBe('Create and insert diagram');
+    expect(command.checkCallback).toBeUndefined();
+    expect(command.editorCheckCallback).toBeTypeOf('function');
+
+    const editor = {} as Editor;
+    const check = command.editorCheckCallback!;
+    expect(check(true, editor, { file: null } as MarkdownFileInfo)).toBe(false);
+    expect(check(true, editor, { file: tfile('image.drawio.svg') } as MarkdownFileInfo)).toBe(false);
+    expect(check(true, editor, { file: tfile('note.md') } as MarkdownFileInfo)).toBe(true);
+    // Availability checks must not read the active file.
+    expect(raw.app.workspace.getActiveFile).not.toHaveBeenCalled();
+
+    const create = vi.spyOn(creation, 'createAndInsertDiagram').mockResolvedValue(undefined);
+    try {
+      const context = { file: tfile('Notes/note.md'), editor } as MarkdownFileInfo;
+      check(true, editor, context);
+      expect(create).not.toHaveBeenCalled();
+      check(false, editor, context);
+      expect(create.mock.calls).toEqual([[plugin, editor, context]]);
+    } finally {
+      create.mockRestore();
+    }
   });
 
   it('adds the ribbon icon', async () => {

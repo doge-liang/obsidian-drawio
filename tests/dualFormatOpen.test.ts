@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Platform, TFile } from 'obsidian';
 import { DualFormatFileSource } from '../src/file/DualFormatFileSource';
 import {
-  handleDualFormatEmbedClick, syncDualFormatEditAction,
+  handleDualFormatEmbedClick, syncDualFormatEditAction, registerDualFormatOpen,
 } from '../src/desktop/dualFormatOpen';
 import type DrawioPlugin from '../src/main';
 import type { PreviewClickAction } from '../src/settings';
@@ -47,13 +47,90 @@ function clickOnEmbed(src: string, alreadyDecorated = false): { event: MouseEven
   const img = document.createElement('img');
   span.appendChild(img);
   document.body.appendChild(span);
-  const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+  const event = new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 });
   Object.defineProperty(event, 'target', { value: img });
   return { event, span };
 }
 
+function registerOpenHandlers(plugin: DrawioPlugin): () => void {
+  const cleanups: Array<() => void> = [];
+  Object.assign(plugin, {
+    registerDomEvent: (
+      target: EventTarget, type: string, cb: EventListener, opts?: AddEventListenerOptions,
+    ) => {
+      target.addEventListener(type, cb, opts);
+      cleanups.push(() => target.removeEventListener(type, cb, opts));
+    },
+    registerEvent: vi.fn(),
+  });
+  Object.assign(plugin.app.workspace, { on: vi.fn(), iterateAllLeaves: vi.fn() });
+  registerDualFormatOpen(plugin);
+  return () => cleanups.forEach(cleanup => cleanup());
+}
+
+const disposers: Array<() => void> = [];
+function startResize(decorated = false) {
+  const { plugin, openEditor } = pluginWith();
+  disposers.push(registerOpenHandlers(plugin));
+  const { span } = clickOnEmbed('diagram.drawio.svg', decorated);
+  if (decorated) span.addEventListener('click', () => openEditor());
+  const handle = document.createElement('div');
+  handle.className = 'image-resize-corner';
+  span.appendChild(handle);
+  handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+  return { span, img: span.querySelector('img')!, openEditor };
+}
+
 describe('handleDualFormatEmbedClick', () => {
-  afterEach(() => { document.body.empty(); });
+  afterEach(() => { disposers.splice(0).forEach(dispose => dispose()); document.body.empty(); });
+
+  it('guards already-open popouts once, and removes the guard on unload', () => {
+    const { plugin, openEditor } = pluginWith();
+    const frame = document.createElement('iframe');
+    document.body.appendChild(frame);
+    const doc = frame.contentDocument!;
+    const containerEl = doc.createElement('div');
+    doc.body.appendChild(containerEl);
+    const span = doc.createElement('span');
+    span.className = 'internal-embed';
+    span.setAttribute('src', 'diagram.drawio.svg');
+    span.dataset.drawioDualformat = '1';
+    containerEl.appendChild(span);
+    const handle = doc.createElement('div');
+    handle.className = 'image-resize-corner';
+    span.appendChild(handle);
+    span.addEventListener('click', () => openEditor());
+    const cleanups: Array<() => void> = [];
+    const registerDomEvent = vi.fn((target: EventTarget, type: string,
+      fn: EventListener, options?: AddEventListenerOptions) => {
+      target.addEventListener(type, fn, options);
+      cleanups.push(() => target.removeEventListener(type, fn, options));
+    });
+    Object.assign(plugin, { registerDomEvent, registerEvent: vi.fn() });
+    const leaf = { view: { containerEl, getViewType: () => 'markdown' } };
+    Object.assign(plugin.app.workspace, {
+      on: vi.fn(), iterateAllLeaves: (cb: (value: typeof leaf) => void) => { cb(leaf); cb(leaf); },
+    });
+    registerDualFormatOpen(plugin);
+    const release = () => {
+      handle.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+      span.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+    };
+    try {
+      release();
+      expect(openEditor).not.toHaveBeenCalled();
+      expect(registerDomEvent.mock.calls.filter(([target, type]) => target === doc && type === 'click')).toHaveLength(1);
+      span.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+      span.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+      expect(openEditor).toHaveBeenCalledOnce();
+      cleanups.forEach(cleanup => cleanup());
+      release();
+      expect(openEditor).toHaveBeenCalledTimes(2);
+    } finally {
+      cleanups.forEach(cleanup => cleanup());
+      frame.remove();
+    }
+  });
 
   it('opens the editor for an undecorated Live Preview dual-format embed', () => {
     const { plugin, openEditor } = pluginWith();
@@ -69,6 +146,54 @@ describe('handleDualFormatEmbedClick', () => {
     const { event } = clickOnEmbed('diagram.drawio.svg', true);
     expect(handleDualFormatEmbedClick(plugin, event)).toBe(false);
     expect(openEditor).not.toHaveBeenCalled();
+  });
+
+  it('leaves native resize and embed-action controls alone', () => {
+    const { plugin, openEditor } = pluginWith();
+    for (const cls of ['image-resize-corner', 'embed-action']) {
+      const { span } = clickOnEmbed('diagram.drawio.svg');
+      const control = document.createElement('div');
+      control.className = cls;
+      span.appendChild(control);
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'target', { value: control });
+      expect(handleDualFormatEmbedClick(plugin, event)).toBe(false);
+    }
+    expect(openEditor).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('does not open on a click retargeted after native image resize (Reading view: %s)', (decorated) => {
+    const { span, img, openEditor } = startResize(decorated);
+    span.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+    span.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+    expect(openEditor).not.toHaveBeenCalled();
+    img.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    img.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+    expect(openEditor).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not suppress a keyboard click after resizing ends without a click', () => {
+    const { span, openEditor } = startResize();
+    const button = document.createElement('button');
+    span.appendChild(button);
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 0 }));
+    expect(openEditor).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps resize click suppression when a note input loses focus', () => {
+    const { span, openEditor } = startResize();
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.dispatchEvent(new FocusEvent('blur'));
+    span.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+    expect(openEditor).not.toHaveBeenCalled();
+  });
+
+  it.each(['blur', 'pointercancel'])('clears resize suppression on %s', (type) => {
+    const { img, openEditor } = startResize();
+    (type === 'blur' ? window : document).dispatchEvent(new Event(type));
+    img.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+    expect(openEditor).toHaveBeenCalledTimes(1);
   });
 
   it('ignores ordinary image embeds', () => {
