@@ -8,11 +8,11 @@ import { pipeline } from 'node:stream/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { bundleStencils } from './bundle-stencils.mjs';
 
-const DRAWIO_VERSION = 'v31.1.8';
+const DRAWIO_VERSION = 'v32.6.10';
 // SHA-256 of the pinned draw.war — MUST match DRAWIO_WAR_SHA256 in
 // src/constants.ts (guarded by tests/drawioVersionSync.test.ts), so the
 // build-time fetch and the runtime installer accept the exact same bytes.
-const WAR_SHA256 = '46389bd60810f9775cd463c9eff4f4f8335f10926d613b0606ad4e978f46d49b';
+const WAR_SHA256 = 'a57b06b3b6a876a351dacfe65d027d9509319cd030e9bacf6ae04a034d66a38f';
 const WAR_URL = `https://github.com/jgraph/drawio/releases/download/${DRAWIO_VERSION}/draw.war`;
 const OUT_DIR = join(process.cwd(), 'webapp');
 
