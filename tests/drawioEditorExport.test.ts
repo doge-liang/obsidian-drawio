@@ -71,6 +71,40 @@ describe('DrawioEditor export round-trip (dual-format sources)', () => {
     container.remove();
   });
 
+  it.each([false, true])('keeps close intent across a trailing XML autosave (write fails: %s)', async (fail) => {
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => { finish = resolve; });
+    const write = vi.fn().mockImplementationOnce(() => pending);
+    if (fail) write.mockRejectedValueOnce(new Error('disk full'));
+    else write.mockResolvedValue(undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    editor = new DrawioEditor(container, {
+      title: () => 'code block', read: async () => '<mxfile/>', write,
+    }, makeDeps(), { onExit, closeOnEscape: true });
+    await editor.mount();
+    const post = vi.spyOn(container.querySelector('iframe')!.contentWindow!, 'postMessage');
+    dispatch({ event: 'load' });
+    editor.requestClose();
+    dispatch({ event: 'save', xml: '<first/>', exit: true });
+    await Promise.resolve();
+    dispatch({ event: 'autosave', xml: '<latest/>' });
+    expect(onExit).not.toHaveBeenCalled();
+    finish();
+    await flush();
+    expect(write.mock.calls.map(([xml]) => xml)).toEqual(['<first/>', '<latest/>']);
+    if (fail) {
+      expect(onExit).not.toHaveBeenCalled();
+      post.mockClear();
+      editor.requestClose();
+      expect(post).toHaveBeenCalledWith(JSON.stringify({ action: 'invokeAction', actionName: 'saveAndExit' }), ORIGIN);
+      write.mockResolvedValue(undefined);
+      dispatch({ event: 'save', xml: '<latest/>', exit: true });
+      await flush();
+    }
+    expect(onExit).toHaveBeenCalledOnce();
+    error.mockRestore();
+  });
+
   it('answers save with an export request instead of writing the XML', async () => {
     const { source, writes } = makeExportingSource();
     await mount(source);
@@ -102,6 +136,78 @@ describe('DrawioEditor export round-trip (dual-format sources)', () => {
     await flush();
     expect(writes).toHaveLength(1);
     expect(onExit).toHaveBeenCalledTimes(1);
+  });
+
+  it('requests native save-and-exit for modal Escape and waits for the image write', async () => {
+    const { source, writes } = makeExportingSource();
+    editor = new DrawioEditor(container, source, makeDeps(), { onExit, closeOnEscape: true });
+    await editor.mount();
+    const cw = container.querySelector('iframe')!.contentWindow!;
+    expect(new URL(container.querySelector('iframe')!.src).searchParams.get('saveAndExit')).toBe('1');
+    vi.spyOn(cw, 'postMessage').mockImplementation((msg: unknown) => { posts.push(msg as string); });
+    dispatch({ event: 'configure' });
+    expect(JSON.parse(posts[0]!).config.passThroughKeys).toEqual([
+      { key: 'Escape', command: 'drawio-close' },
+    ]);
+    dispatch({ event: 'load' });
+    dispatch({ event: 'shortcut', command: 'drawio-close' });
+    expect(posts.map((p) => JSON.parse(p))).toContainEqual({ action: 'resetEditor' });
+    expect(posts.map((p) => JSON.parse(p))).toContainEqual({ action: 'invokeAction', actionName: 'saveAndExit' });
+    expect(onExit).not.toHaveBeenCalled();
+    dispatch({ event: 'save', xml: '<mxfile>latest</mxfile>', exit: true });
+    await flush();
+    dispatch({ event: 'export', data: 'data:image/svg+xml;base64,YQ==' });
+    await flush();
+    expect(writes).toHaveLength(1);
+    expect(onExit).toHaveBeenCalledTimes(1);
+  });
+
+  it('retains the editor after a failed Escape save and permits retry', async () => {
+    const { source, writes } = makeExportingSource();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const persist = vi.spyOn(source, 'writeExport').mockRejectedValueOnce(new Error('disk full'));
+    editor = new DrawioEditor(container, source, makeDeps(), { onExit, closeOnEscape: true });
+    await editor.mount();
+    const post = vi.spyOn(container.querySelector('iframe')!.contentWindow!, 'postMessage');
+    dispatch({ event: 'load' });
+    dispatch({ event: 'shortcut', command: 'drawio-close' });
+    dispatch({ event: 'save', xml: '<latest/>', exit: true });
+    dispatch({ event: 'export', data: 'data:image/svg+xml;base64,YQ==' });
+    await flush();
+    expect(onExit).not.toHaveBeenCalled();
+    post.mockClear();
+    dispatch({ event: 'shortcut', command: 'drawio-close' });
+    expect(post).toHaveBeenCalledWith(JSON.stringify({ action: 'invokeAction', actionName: 'saveAndExit' }), ORIGIN);
+    dispatch({ event: 'save', xml: '<latest/>', exit: true });
+    dispatch({ event: 'export', data: 'data:image/svg+xml;base64,YQ==' });
+    await flush();
+    expect(writes).toHaveLength(1);
+    expect(onExit).toHaveBeenCalledTimes(1);
+    error.mockRestore();
+  });
+
+  it('leaves inline editors alone and rejects untrusted Escape shortcut messages', async () => {
+    const { source } = makeExportingSource();
+    await mount(source);
+    dispatch({ event: 'configure' });
+    expect(JSON.parse(posts[0]!).config.passThroughKeys).toBeUndefined();
+    dispatch({ event: 'shortcut', command: 'drawio-close' });
+    expect(posts).toHaveLength(1);
+    editor!.destroy();
+    editor = new DrawioEditor(container, source, makeDeps(), { onExit, closeOnEscape: true });
+    await editor.mount();
+    const iframe = container.querySelector('iframe')!;
+    const post = vi.spyOn(iframe.contentWindow!, 'postMessage');
+    window.dispatchEvent(new MessageEvent('message', {
+      source: iframe.contentWindow, origin: 'https://untrusted.example',
+      data: JSON.stringify({ event: 'shortcut', command: 'drawio-close' }),
+    }));
+    window.dispatchEvent(new MessageEvent('message', {
+      source: window, origin: ORIGIN,
+      data: JSON.stringify({ event: 'shortcut', command: 'drawio-close' }),
+    }));
+    dispatch({ event: 'shortcut', command: 'another-command' });
+    expect(post).not.toHaveBeenCalled();
   });
 
   it('coalesces overlapping autosaves into one trailing re-export', async () => {

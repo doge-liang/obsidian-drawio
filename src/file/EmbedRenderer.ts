@@ -7,6 +7,7 @@ import {
 } from '../preview/clickAction';
 import { mountInteractiveViewer, type InteractiveMountHandle } from '../preview/interactiveMount';
 import { SectionLifecycle } from '../preview/sectionLifecycle';
+import { isNativeImageControl } from '../preview/nativeImageControls';
 import {
   readEmbedViewportHeight, writeEmbedViewportHeight,
 } from '../preview/embedViewportHeight';
@@ -349,6 +350,7 @@ export function registerDualFormatEmbeds(plugin: DrawioPlugin) {
       // (e.g. lightbox); the action is re-resolved at click time so a settings
       // change applies to already-decorated embeds.
       span.addEventListener('click', (e) => {
+        if (isNativeImageControl(e)) return;
         const current = resolveAction();
         if (current.kind === 'none') return; // leave native image behavior alone
         e.preventDefault();

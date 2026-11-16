@@ -2,7 +2,7 @@ import { FileSystemAdapter, Notice, TFile, TFolder } from 'obsidian';
 import { join } from 'node:path';
 import { DRAWIO_VERSION } from '../constants';
 import { ServerManager } from '../server/ServerManager';
-import { createNewDiagram } from '../file/createDiagram';
+import { createAndInsertDiagram, createNewDiagram } from '../file/createDiagram';
 import { DualFormatFileSource } from '../file/DualFormatFileSource';
 import { dualFormatOf } from '../model/dualFormat';
 import { exportDiagramToFile, isExportableDiagram } from './exportDiagram';
@@ -12,7 +12,7 @@ import type DrawioPlugin from '../main';
 
 /**
  * Registers everything that only makes sense — and only works — on desktop:
- * the local drawio server, the ribbon icon, the "Create new diagram" command,
+ * the local drawio server, the ribbon icon, the create-diagram commands,
  * and the folder-context-menu item. Only reached through the
  * `Platform.isDesktopApp` gate in main.ts's `onload()` (via
  * `maybeRegisterDesktopFeatures`), so this file — and anything it statically
@@ -36,6 +36,16 @@ export async function registerDesktopFeatures(plugin: DrawioPlugin): Promise<voi
     id: 'create-drawio-file',
     name: 'Create new diagram',
     callback: () => { void createNewDiagram(plugin); },
+  });
+
+  plugin.addCommand({
+    id: 'create-and-insert-drawio-file',
+    name: 'Create and insert diagram',
+    editorCheckCallback: (checking, editor, context) => {
+      if (context.file?.extension !== 'md') return false;
+      if (!checking) void createAndInsertDiagram(plugin, editor, context);
+      return true;
+    },
   });
 
   plugin.addRibbonIcon('workflow', 'Create new drawio diagram', () => {
