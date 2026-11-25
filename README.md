@@ -162,6 +162,13 @@ npm run build          # type-check + production bundle
 
 Bug reports and pull requests are welcome — please open an [issue](https://github.com/doge-liang/obsidian-drawio/issues) first for larger changes.
 
+## Contributors
+
+- [@Raumo0](https://github.com/Raumo0) proposed [archive checksum verification](https://github.com/doge-liang/obsidian-drawio/issues/17) and the [interactive viewer](https://github.com/doge-liang/obsidian-drawio/issues/18), and implemented the [interactive viewer and resizable previews](https://github.com/doge-liang/obsidian-drawio/pull/19).
+- [@xialu4820723](https://github.com/xialu4820723) fixed [embed resizing and image refresh after saving](https://github.com/doge-liang/obsidian-drawio/pull/36) and added [diagram creation directly in notes](https://github.com/doge-liang/obsidian-drawio/pull/37).
+
+Thanks to everyone who reports bugs, suggests improvements, and submits pull requests. See [GitHub’s contributor graph](https://github.com/doge-liang/obsidian-drawio/graphs/contributors) for commit activity.
+
 ## License
 
 [MIT](LICENSE)

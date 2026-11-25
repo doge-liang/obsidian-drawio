@@ -162,6 +162,13 @@ npm run build          # 类型检查 + 生产构建
 
 欢迎提交 bug 报告和 pull request —— 较大的改动请先开一个 [issue](https://github.com/doge-liang/obsidian-drawio/issues)。
 
+## 贡献者
+
+- [@Raumo0](https://github.com/Raumo0) 提议加入[安装包校验](https://github.com/doge-liang/obsidian-drawio/issues/17)和[交互式预览](https://github.com/doge-liang/obsidian-drawio/issues/18)，并实现了[交互式预览和预览高度调节](https://github.com/doge-liang/obsidian-drawio/pull/19)。
+- [@xialu4820723](https://github.com/xialu4820723) 修复了[嵌入预览尺寸和保存后的图片刷新](https://github.com/doge-liang/obsidian-drawio/pull/36)，并加入了[直接在笔记中创建图表](https://github.com/doge-liang/obsidian-drawio/pull/37)的功能。
+
+感谢每一位报告问题、提出建议和提交 PR 的朋友。[GitHub 贡献者统计](https://github.com/doge-liang/obsidian-drawio/graphs/contributors)记录了仓库的提交活动。
+
 ## 许可证
 
 [MIT](LICENSE)
