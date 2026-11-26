@@ -162,6 +162,14 @@ npm run build          # 类型检查 + 生产构建
 
 欢迎提交 bug 报告和 pull request —— 较大的改动请先开一个 [issue](https://github.com/doge-liang/obsidian-drawio/issues)。
 
+## 项目趋势
+
+[![GitHub Star 历史](https://api.star-history.com/svg?repos=doge-liang/obsidian-drawio&type=Date)](https://www.star-history.com/#doge-liang/obsidian-drawio&Date)
+
+[![Obsidian 累计下载量趋势](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/stats/obsidian-downloads.svg)](https://community.obsidian.md/plugins/drawio-editor)
+
+下载曲线每日从 [Obsidian 官方统计](https://github.com/obsidianmd/obsidian-releases/blob/master/community-plugin-stats.json)更新。早期快照来自[公开下载归档](https://github.com/yulei-chen/obsidian-plugin-download-stats)。
+
 ## 贡献者
 
 - [@Raumo0](https://github.com/Raumo0) 提议加入[安装包校验](https://github.com/doge-liang/obsidian-drawio/issues/17)和[交互式预览](https://github.com/doge-liang/obsidian-drawio/issues/18)，并实现了[交互式预览和预览高度调节](https://github.com/doge-liang/obsidian-drawio/pull/19)。

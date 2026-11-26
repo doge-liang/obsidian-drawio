@@ -162,6 +162,14 @@ npm run build          # type-check + production bundle
 
 Bug reports and pull requests are welcome — please open an [issue](https://github.com/doge-liang/obsidian-drawio/issues) first for larger changes.
 
+## Project trends
+
+[![GitHub star history](https://api.star-history.com/svg?repos=doge-liang/obsidian-drawio&type=Date)](https://www.star-history.com/#doge-liang/obsidian-drawio&Date)
+
+[![Cumulative Obsidian downloads over time](https://raw.githubusercontent.com/doge-liang/obsidian-drawio/stats/obsidian-downloads.svg)](https://community.obsidian.md/plugins/drawio-editor)
+
+The download chart is updated daily from [Obsidian's official stats](https://github.com/obsidianmd/obsidian-releases/blob/master/community-plugin-stats.json). Earlier snapshots come from the [public download archive](https://github.com/yulei-chen/obsidian-plugin-download-stats).
+
 ## Contributors
 
 - [@Raumo0](https://github.com/Raumo0) proposed [archive checksum verification](https://github.com/doge-liang/obsidian-drawio/issues/17) and the [interactive viewer](https://github.com/doge-liang/obsidian-drawio/issues/18), and implemented the [interactive viewer and resizable previews](https://github.com/doge-liang/obsidian-drawio/pull/19).
