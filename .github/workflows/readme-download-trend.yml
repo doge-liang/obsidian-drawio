@@ -1,0 +1,44 @@
+name: README download trend
+
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: readme-download-trend
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@v7
+        with:
+          ref: stats
+          path: published-stats
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Update Obsidian download history
+        run: node scripts/update-download-trend.mjs published-stats
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Publish changed data and chart
+        working-directory: published-stats
+        run: |
+          git add -- downloads.json obsidian-downloads.svg
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m 'Update Obsidian download trend'
+          git push origin HEAD:stats
